@@ -139,13 +139,13 @@ static Obstacle make_obstacle(LayoutRng *r,double x,unsigned serial) {
     const double k=MOVEMENT_SCALE;
     switch (kind) {
         case OB_BIRD:
-            return (Obstacle){x,42*k,34*k,(5+layout_roll(r,101))*k,1,OB_BIRD,0,serial};
-        case OB_CHROME: return (Obstacle){x+500*k,250*k,250*k,5*k,1,OB_CHROME,-5,serial};
-        case OB_CAVE: return (Obstacle){x,665*k,665*k,35*k,1,OB_CAVE,0,serial};
-        case OB_TREE: return (Obstacle){x+200*k,220*k,165*k,5*k,1,OB_TREE,0,serial};
-        case OB_SPIKES: return (Obstacle){x,1400*k,30*k,5*k,1,OB_SPIKES,0,serial};
+            return (Obstacle){x,42*k,34*k,(5+layout_roll(r,101))*k,1,OB_BIRD,0,0,serial};
+        case OB_CHROME: return (Obstacle){x+500*k,250*k,250*k,5*k,1,OB_CHROME,-5,0,serial};
+        case OB_CAVE: return (Obstacle){x,665*k,665*k,35*k,1,OB_CAVE,0,0,serial};
+        case OB_TREE: return (Obstacle){x+200*k,220*k,165*k,5*k,1,OB_TREE,0,0,serial};
+        case OB_SPIKES: return (Obstacle){x,1400*k,30*k,5*k,1,OB_SPIKES,0,0,serial};
         default: {
-            return (Obstacle){x,widths[kind]*k,heights[kind]*k,5*k,1,(int)kind,0,serial};
+            return (Obstacle){x,widths[kind]*k,heights[kind]*k,5*k,1,(int)kind,0,0,serial};
         }
     }
 }
@@ -475,6 +475,12 @@ static void step_world(World *w, int test, unsigned input) {
         Obstacle *o=&w->obstacles[i];
         if (o->drift && o->x-w->distance<W) {
             double x=o->x+o->drift*MOVEMENT_SCALE;
+            if(o->sprite==OB_CHROME && o->w>0) {
+                /* Native 0x449650: angle -= drift*180/(pi*radius), wrapped to +-360. */
+                o->angle-=o->drift*MOVEMENT_SCALE*180/(PI*(o->w*.5));
+                if(o->angle>360) o->angle-=720;
+                else if(o->angle<-360) o->angle+=720;
+            }
             /* Don't let moving obstacles overtake a stationary obstacle. */
             double limit=i?w->obstacles[i-1].x+w->obstacles[i-1].w:x;
             o->x=x<limit?limit:x;

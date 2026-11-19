@@ -30,7 +30,7 @@ enum { OB_BIRD=9, OB_CHROME, OB_CAVE, OB_TREE, OB_SPIKES };
 
 typedef struct { uint32_t state; } Rng;
 typedef struct { uint32_t state[624]; unsigned index; } LayoutRng;
-typedef struct { double x, w, h, y, scale; int sprite; double drift; unsigned serial; } Obstacle;
+typedef struct { double x, w, h, y, scale; int sprite; double drift, angle; unsigned serial; } Obstacle;
 typedef struct { double x, y, vx, vy; int active; } Shot;
 typedef struct { double x, y, vx, vy; int timer, active; } Bird;
 typedef struct {

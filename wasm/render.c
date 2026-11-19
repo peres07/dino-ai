@@ -157,7 +157,8 @@ static void draw_obstacle(const World *w,const Obstacle *o,int front) {
         x-=(tree?795:170)*k;
         width=(tree?1800:1000)*k;
         height=(tree?1604:842)*k;
-        y=GROUND+(tree?18:1)*k-height;
+        /* Image bottom on the ground line: the roots/cave base rest on the sand. */
+        y=GROUND-height;
         if(!visible(x,y,width,height)) return;
         /* arvore3/arvore4 are allocated at manager+0x7c/+0x80 and drawn in
            pass 1, behind the runner (0x4520a0). arvore2 lives at +0x78 and
@@ -181,7 +182,8 @@ static void draw_obstacle(const World *w,const Obstacle *o,int front) {
         case OB_SPIKES: id=SPIKES; break;
         default: id=CACTUS+o->sprite; tint=game.birdless?0x138600:0x549723; break;
     }
-    sprite(id,x,y,width,height,0,1,tint);
+    /* Native adds 3 degrees to the obstacle angle before drawing (0x451dc4). */
+    sprite(id,x,y,width,height,(o->angle+3)*(PI/180),1,tint);
 }
 
 void draw_game(void) {
@@ -199,18 +201,16 @@ void draw_game(void) {
     }
     if(w->tick>480) sprite(night?MOON:SUN,965,44,63,63,0,.9,0);
     /* Both editions show three ridge bands (fundo0/fundo1 tinted). */
+    /* fundo0/fundo1 are 1200x90 native: 750x56.25 logical, tiled at natural
+       size with the terrain strip touching the ground line. */
     static const unsigned ridge[3]={0x513a29,0x79573d,0xb5825b};
     for(unsigned layer=0;layer<3;layer++) {
         unsigned tint=night?0x56494a:ridge[layer];
-        double height=64-7*layer;
-        if(game.birdless) {
-            for(int i=0;i<3;i++) {
-                double x=750*i-wrap(w->distance*(.15+.08*layer)+layer*237,750);
-                sprite(HILLS+(layer?1:0),x,GROUND-height+2,751,height,0,1,tint);
-            }
-        } else {
-            double hill=wrap(w->distance*(.16+.09*layer),W);
-            for(int i=0;i<2;i++) sprite(HILLS+((i+layer)&1),i*W-hill,GROUND-height+2,W,height,0,1,tint);
+        double height=90*MOVEMENT_SCALE;
+        for(int i=0;i<4;i++) {
+            double x=750*i-wrap(w->distance*(.15+.08*layer)+layer*237,750);
+            if(x>W || x+750<0) continue;
+            sprite(HILLS+((i+layer)&1),x,GROUND-height,750,height,0,1,tint);
         }
     }
     int fixed=game.testing&&!game.birdless;
