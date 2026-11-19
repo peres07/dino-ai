@@ -11,11 +11,15 @@ const movementModels = readdirSync(movementDir);
 const movement = name => readFileSync(`${movementDir}/${name}`);
 
 function engine(birdless = false) {
-  const records = [], draws = [], dinos = [], sprites = [], texts = [], lines = [];
+  const records = [], draws = [], dinos = [], sprites = [], texts = [], lines = [], birds = [];
   const browser = Object.fromEntries(WebAssembly.Module.imports(module).map(({name}) => [name, () => {}]));
   browser.record = (score, ptr, len) => records.push([score, Buffer.from(view(ptr, len))]);
   browser.surface = id => draws.push(id);
-  browser.sprite = (id, x, y, width) => { sprites.push(id); if (id < 12) dinos.push({x, y, width}); };
+  browser.sprite = (id, x, y, width, height, rotation) => {
+    sprites.push(id);
+    if (id >= 21 && id <= 24) birds.push({id, x, y, width, height, rotation});
+    if (id < 12) dinos.push({x, y, width});
+  };
   browser.text = (p, len) => texts.push(Buffer.from(view(p, len)).toString('utf8'));
   browser.line = (...args) => lines.push(args);
   const e = new WebAssembly.Instance(module, {browser}).exports;
@@ -27,7 +31,7 @@ function engine(birdless = false) {
   };
   if (birdless) e.init_birdless(1);
   else e.init(1);
-  return {e, view, records, draws, dinos, sprites, texts, lines, load};
+  return {e, view, records, draws, dinos, sprites, texts, lines, birds, load};
 }
 
 test('loads each legacy network and rejects invalid or incompatible data', () => {
@@ -341,6 +345,30 @@ test('tree layers follow the native two passes', () => {
       assert.ok(deeper > deep && deeper < front, 'arvore4 is drawn behind the runner');
     }
   }
+});
+
+test('bird sprite follows the native pair and flight angle', () => {
+  const {e, load, birds, sprites} = engine();
+  load(dodge, 1);
+  const seen = new Set();
+  let rotated = 0, frames = 0;
+  for (let i = 0; i < 600 && frames < 40; i++) {
+    e.frame(50, 0, 0);
+    birds.length = 0;
+    sprites.length = 0;
+    e.paint();
+    if (!birds.length) continue;
+    frames++;
+    for (const b of birds) {
+      assert.ok(b.id >= 21 && b.id <= 24, 'only passaro1..4 are drawn');
+      seen.add(b.id);
+      if (Math.abs(b.rotation) > 0.05) rotated++;
+    }
+  }
+  assert.ok(frames > 5, 'the bird is visible during training');
+  assert.ok(rotated > 0, 'the sprite is rotated along the flight direction');
+  // passaro1/2 and passaro3/4 are the two mirrored pairs; the mirrored pair shows the other heading.
+  assert.ok(seen.size >= 2, 'both animation frames of a pair are used');
 });
 
 test('network view highlights only the neuron under the pointer', () => {

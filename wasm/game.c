@@ -295,7 +295,7 @@ static void update_bird(Dino *d) {
 static int overlap(double a, double b, double c, double d) { return a < d && c < b; }
 
 unsigned runner_pose(const Dino *d,unsigned tick,double *width,double *height) {
-    static const unsigned widths[]={40,40,56,56,40,40,56,36,43,40,40,51};
+    static const unsigned widths[]={40,40,55,55,40,40,55,36,43,40,40,51};
     static const unsigned heights[]={43,43,25,26,43,43,25,37,48,47,43,44};
     unsigned pose;
     if (!d->alive) pose=10;

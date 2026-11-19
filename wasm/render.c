@@ -104,14 +104,32 @@ static void draw_dino(const Dino *d,unsigned tick,unsigned tint) {
     sprite(GUN,gx+9*c-15,gy-9*s-6.5,30,13,-d->angle,1,0);
 }
 
-static double shot_angle(const Shot *s) {
-    /* Approximate atan2 from velocity: the projectile must not follow the current gun angle. */
-    double x=s->vx,y=-s->vy, ax=absd(x),ay=absd(y);
+/* Approximate atan2 in the math convention (y up). */
+static double velocity_angle(double vx,double vy) {
+    double x=vx,y=-vy, ax=absd(x),ay=absd(y);
     if(ax+ay<.001) return 0;
     double q=ax>ay?ay/ax:ax/ay, a=q*(PI/4+.273*(1-q));
     if(ay>ax) a=PI/2-a;
     if(x<0) a=PI-a;
     return y<0?-a:a;
+}
+
+static double shot_angle(const Shot *s) {
+    /* The projectile must not follow the current gun angle. */
+    return velocity_angle(s->vx,s->vy);
+}
+
+/* passaro::desenhar (0x45038b-0x450456): the angle at +0x18 picks the pair and
+   the rotation. Left flight uses passaro3/4 rotated by angle-180; right flight
+   uses passaro1/2 rotated by angle. Frame interval is 10 in the native group. */
+static void draw_bird(const Bird *b,unsigned tick) {
+    if(!b->active) return;
+    double y=GROUND-b->y-BIRD_H;
+    if(!visible(b->x,y,BIRD_W,BIRD_H)) return;
+    int left=b->vx<0;
+    double screen=-velocity_angle(b->vx,b->vy);
+    double rotation=left?screen-PI:screen;
+    sprite(BIRD+(left?2:0)+(tick/10)%2,b->x,y,BIRD_W,BIRD_H,rotation,1,0);
 }
 
 static void projectiles(const World *w) {
@@ -158,7 +176,7 @@ static void draw_obstacle(const World *w,const Obstacle *o,int front) {
     if(front || !visible(x,y,width,height)) return;
     unsigned id,tint=0;
     switch(o->sprite) {
-        case OB_BIRD: id=BIRD+(w->tick/11)%2; break;
+        case OB_BIRD: id=BIRD+(w->tick/10)%2; break;
         case OB_CHROME: id=CHROME; break;
         case OB_SPIKES: id=SPIKES; break;
         default: id=CACTUS+o->sprite; tint=game.birdless?0x138600:0x549723; break;
@@ -218,10 +236,8 @@ void draw_game(void) {
     }
     for(unsigned i=0;!movement_only(game.testing) && i<w->count;i++) {
         const Dino *d=&w->dinos[i];
-        if((!game.testing && i!=w->lead) || !d->alive || !d->bird.active) continue;
-        /* passaro1/2 face one way and 3/4 the other; frame toggles every 11 ticks. */
-        unsigned base=d->bird.vx>0?0:2;
-        sprite(BIRD+base+(w->tick/11)%2,d->bird.x,GROUND-d->bird.y-BIRD_H,BIRD_W,BIRD_H,0,1,0);
+        if((!game.testing && i!=w->lead) || !d->alive) continue;
+        draw_bird(&d->bird,w->tick);
     }
     if(!movement_only(game.testing)) projectiles(w);
     draw_dino(lead,w->tick,dino_color(w->lead));

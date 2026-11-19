@@ -80,11 +80,35 @@ Duas execuções novas dos PEs em Wine 11.22, cada uma numa cópia isolada com p
 | Serras | Capturas das duas edições e desenho em `0x443c40`/`0x44cc9b` mostram três faixas (`fundo0`/`fundo1`, 1200×90 nativos) com parallax distinto. | Três faixas nas duas edições, com tons escuro/médio/claro. |
 | Moeda | PNGs e sprites nativos medem 40×40; `0x449383–0x44939f` aplica a oscilação vertical senoidal. | Moeda quadrada de 40 px nativos com oscilação de ±5 px nativos. Antes era esticada para 40×50. |
 | Fumaça | Nove quadros `fumaca1..9` no atlas. | O índice agora alcança o nono quadro (antes parava no oitavo). |
-| Ave | `0x45038b–0x450486` escolhe entre `passaro1/2` e `passaro3/4` pelo rumo; o contador configurado é 10 e é comparado antes do incremento. | O sprite escolhe a família pelo sinal de `vx` e alterna o quadro a cada 11 passos. |
+| Ave | `passaro::desenhar` (`0x45038b–0x450456`): o ângulo de voo fica em `bird+0x18` (`0x450630`, saída de `anguloEntrePontos`). Ângulo em (90°,270°) usa `passaro3/4` com rotação `ângulo−180`; fora disso usa `passaro1/2` com rotação `ângulo`. O grupo anima a cada 10 atualizações (`0x450665–0x450683`, intervalo `10`). Velocidade 5 px/tick (`0x4c6fa4` em `0x450637`). | O sprite escolhe a família pelo sinal de `vx`, é **rotacionado pelo ângulo de voo** (espelhado para a esquerda) e alterna o quadro a cada 10 passos. |
 | Mira | `Girar Cima`/`Girar Baixo` (`0x4c6029`, `0x4c6034`) são as saídas 0 e 1; ângulo positivo aponta para cima. | Corrigido o sinal do giro na rede e no teclado (`A` sobe, `D` desce) e o desenho da arma/projétil, que estava espelhado. |
+| Dimensões do dino | Tabela de constantes em `0x4c6ff0`: (40,43) em pé, (55,25)/(55,26) abaixado, (36,37) pulo duplo, (48,47) queda, (51,44) dash (`0x43fc95–0x43feec`). | O port usava largura 56 no agachamento; corrigido para **55**. |
 | Patinho e dash | Integrador comum (`0x446e60–0x446ec8` com `0x447340`): o agachar soma um deslocamento próprio sem substituir a gravidade; o dash volta a ficar disponível no chão, não ao soltar o botão. | `move_runner` aplica `-5` px nativos durante o agachamento e rearma o dash apenas no chão. |
 | Modo inicial | O PE com pássaros começa com 500 indivíduos, 50 pais e 35 pesos de mira, mantendo `redeDesviando` fixa e fora do DNA. | A edição com pássaros abre em **Só disparo** com `redeDesviando`; o treino conjunto continua opcional na interface. |
 | Camadas da árvore | `obstaculo::alocarSprites` (com pássaros, `0x451539–0x4518b2`) guarda `arvore2` em `manager+0x78`, `arvore3` em `+0x7c` e `arvore4` em `+0x80`. `obstaculo::desenhar` desenha `+0x7c` e `+0x80` na passada 1, atrás do dino (`0x4520a0` e `0x4521f3`), e só `+0x78` na passada 2, à frente (`0x451f92`). A base `arvore.png` usa o sprite da entrada e sai na passada 1. | Na edição com pássaros, a copa base e depois `arvore3`/`arvore4` são desenhadas atrás do dino, e `arvore2` na frente. A edição sem pássaros só tem `arvore.png` e `arvore2.png` no pacote e mantém duas camadas. Um teste novo confere a ordem das duas passadas nas duas edições. |
+
+### Verificação final por subsistema
+
+| Subsistema | Evidência conferida | Situação |
+|---|---|---|
+| Rolagem e velocidade | `5` a `10`, passo `±0,001`, inversão nos limites (`0x4471fa`, `0x4493d0`) | Igual |
+| Ações e impulsos | Salto `9`, direita `3`, esquerda `−4,5`, gravidade `0,4`, dash `20×0,9`, agachar `−5`, duplo/super com custos 20/50 | Igual |
+| Dimensões e poses | Tabela `0x4c6ff0` (40×43, 55×26, 36×37, 48×47, 51×44) | Igual (largura do agachamento corrigida) |
+| Colisão | `0x449f50`/`0x44c400`: retângulo 10%–90% da pose, janela da árvore, caverna abaixada, círculo do Chrome | Igual |
+| Obstáculos | 14 tipos, escala 1, espaçamento 600–750 +100 após árvore, 7 slots | Igual (sem ave na edição sem pássaros) |
+| Comida | `rand(0,1880)`, oscilação senoidal, coleta sem bônus | Igual |
+| Energia | `+0,01`/passo, `+20` supercacto, `+50` árvore/Chrome, `100` espinhos | Igual |
+| Mira e tiro | 4 sensores, giro `12°`/saída com custo `0,167`, 5 projéteis, custo 5, intervalo 10 | Igual |
+| Ave | Espera 50, velocidade 5, entrada 1–5, recarga de munição ao acertar | Igual (sprite agora rotacionado, quadro a cada 10) |
+| Pontuação | Acerto `1 + distância/W`; `+0x90`/`+0xb0` sem escritor | Igual |
+| Evolução | Clone cíclico, gaussiana discreta, 1 clone intacto, 1 gene zerado | Igual |
+| Recordes | Média das 2 partidas, primeiro máximo, precisão integral, arredondamento só no nome | Igual |
+| HUD | `%.3fx`, `%dh:%dm:%ds`, rótulos conferidos na string table | Igual |
+| Cenário | 3 serras, chão 60×12 com chao4/5, moeda 40×40, 9 quadros de fumaça | Igual |
+| Rede ampliada | Hit test do mouse (`0x4056d1–0x40576a`) | Igual |
+| Modo inicial | 500/50, 35 pesos de mira, `redeDesviando` fixa | Igual |
+
+**Divergências restantes (conhecidas):** os **valores** do RNG não coincidem com o PE (o port separa os fluxos para reprodutibilidade; a distribuição é a mesma); empates de ordenação seguem o primeiro índice, enquanto o `std::sort` nativo é instável; a auditoria da **inferência** das redes empacotadas (layout de pesos e ativação por camada) não foi concluída; o **minimapa** do port copia a tela, não um render próprio; a **fonte** fora do HUD usa o canvas (SDL_ttf no original) e o **pacing** avança por tempo real com teto de 96 passos por quadro.
 
 **Ainda não certificado:** a auditoria das redes salvas não foi concluída nesta rodada por limite de uso do provedor; a comparação continua estática mais visual, não quadro a quadro com o PE. A ordem de `rand()` da inicialização nativa, os empates de ordenação e o acabamento de textos fora do HUD seguem sem prova de igualdade.
 
