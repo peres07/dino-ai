@@ -226,7 +226,9 @@ void draw_game(void) {
     for(int i=-44;i<76;i++) {
         double x=i*tile_w-offset;
         if(!visible(x,GROUND-2,tile_w,tile_h)) continue;
-        sprite(GROUND_TILE+ground_tile(i+shift),x,GROUND-2,tile_w,tile_h,0,1,0xb5825b);
+        /* Native ground tiles are white masks tinted grey (0x838383): the band
+           reads as a distinct grey strip under the dirt, not as more dirt. */
+        sprite(GROUND_TILE+ground_tile(i+shift),x,GROUND-2,tile_w,tile_h,0,1,0x838383);
     }
     for(unsigned i=0;i<OBSTACLES;i++) draw_obstacle(w,&w->obstacles[i],0);
     double cx=w->coin_x-w->distance;

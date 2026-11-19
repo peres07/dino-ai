@@ -76,7 +76,7 @@ Duas execuções novas dos PEs em Wine 11.22, cada uma numa cópia isolada com p
 | Item | Evidência | Aplicação |
 |---|---|---|
 | Formato do HUD | Strings `%.3fx` e `%dh:%dm:%ds` nos dois PEs (`0x4c5280`/`0x4c13e1`, `0x4c5201`/`0x4c1362`). Capturas novas confirmam `TA: 1.000x` e `0h:0m:0s`. | As duas edições passam a usar o mesmo formato compacto; antes a edição com pássaros mostrava `1.00` sem sufixo. |
-| Chão | `experimento::desenhar`, seleção em `0x445b93`: índice 5 em múltiplos de 20, 4 em múltiplos de 10, senão o ciclo 0–3. BMPs `chao0..5` medem **60×12 px nativos**. | Ladrilhos desenhados em 60×12 convertidos por `MOVEMENT_SCALE` e com o mesmo padrão de seleção. Antes eram 1,6× maiores. |
+| Chão | `experimento::desenhar`, seleção em `0x445b93`: índice 5 em múltiplos de 20, 4 em múltiplos de 10, senão o ciclo 0–3. BMPs `chao0..5` medem **60×12 px nativos**, com as 5 primeiras linhas transparentes; no PE a faixa aparece cinza (`131,131,131`) sob a terra. | Ladrilhos desenhados em 60×12 convertidos por `MOVEMENT_SCALE`, com o mesmo padrão de seleção e **tinta cinza `0x838383`**. Antes eram 1,6× maiores e pintados da cor da terra, o que escondia a faixa e fazia dinos/árvore/caverna parecerem soltos no ar. |
 | Serras | Capturas das duas edições e desenho em `0x443c40`/`0x44cc9b` mostram três faixas (`fundo0`/`fundo1`, 1200×90 nativos) com parallax distinto. | Três faixas nas duas edições, com tons escuro/médio/claro. |
 | Moeda | PNGs e sprites nativos medem 40×40; `0x449383–0x44939f` aplica a oscilação vertical senoidal. | Moeda quadrada de 40 px nativos com oscilação de ±5 px nativos. Antes era esticada para 40×50. |
 | Fumaça | Nove quadros `fumaca1..9` no atlas. | O índice agora alcança o nono quadro (antes parava no oitavo). |
