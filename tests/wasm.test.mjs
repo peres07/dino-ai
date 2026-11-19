@@ -11,12 +11,13 @@ const movementModels = readdirSync(movementDir);
 const movement = name => readFileSync(`${movementDir}/${name}`);
 
 function engine(birdless = false) {
-  const records = [], draws = [], dinos = [], sprites = [], texts = [];
+  const records = [], draws = [], dinos = [], sprites = [], texts = [], lines = [];
   const browser = Object.fromEntries(WebAssembly.Module.imports(module).map(({name}) => [name, () => {}]));
   browser.record = (score, ptr, len) => records.push([score, Buffer.from(view(ptr, len))]);
   browser.surface = id => draws.push(id);
   browser.sprite = (id, x, y, width) => { sprites.push(id); if (id < 12) dinos.push({x, y, width}); };
   browser.text = (p, len) => texts.push(Buffer.from(view(p, len)).toString('utf8'));
+  browser.line = (...args) => lines.push(args);
   const e = new WebAssembly.Instance(module, {browser}).exports;
   const view = (p, len) => new Uint8Array(e.memory.buffer, p, len);
   const load = (bytes, type) => {
@@ -26,7 +27,7 @@ function engine(birdless = false) {
   };
   if (birdless) e.init_birdless(1);
   else e.init(1);
-  return {e, view, records, draws, dinos, sprites, texts, load};
+  return {e, view, records, draws, dinos, sprites, texts, lines, load};
 }
 
 test('loads each legacy network and rejects invalid or incompatible data', () => {
@@ -342,6 +343,33 @@ test('tree layers follow the native two passes', () => {
   }
 });
 
+test('network view highlights only the neuron under the pointer', () => {
+  const {e, load, lines} = engine();
+  load(dodge, 1);
+  e.command(2); // expanded network overlay
+  lines.length = 0;
+  e.paint();
+  const all = lines.length;
+  assert.ok(all > 0, 'the full network is drawn without a hover');
+  let best = null;
+  for (let gx = 0; gx <= 12; gx++) for (let gy = 0; gy <= 8; gy++) {
+    const px = 315 + 540 * gx / 12, py = 65 + 460 * gy / 8;
+    e.pointer(1, px, py);
+    lines.length = 0;
+    e.paint();
+    if (!best || lines.length < best.n) best = {n: lines.length, px, py};
+  }
+  assert.ok(best.n > 0 && best.n < all, 'hovering a neuron keeps only its connections');
+  e.pointer(1, best.px, best.py);
+  lines.length = 0;
+  e.paint();
+  assert.equal(lines.length, best.n);
+  e.pointer(0, 0, 0);
+  lines.length = 0;
+  e.paint();
+  assert.equal(lines.length, all, 'leaving the canvas restores every connection');
+});
+
 test('population sprites are painted at real locations, not in an artificial row', () => {
   const {e, load, dinos} = engine();
   load(dodge, 1);
@@ -350,8 +378,9 @@ test('population sprites are painted at real locations, not in an artificial row
   const startX = e.status(25);
   e.paint();
   assert.equal(dinos.length, 4);
-  assert.ok(dinos.every(d => d.y === dinos[0].y));
-  assert.ok(dinos.every(d => d.x === startX));
+  assert.ok(dinos.every(d => d.y === dinos[0].y), 'everyone spawns on the floor');
+  assert.equal(new Set(dinos.map(d => d.x)).size, 4, 'native spread: no two individuals share the spawn X');
+  assert.ok(dinos.some(d => d.x === startX), 'the leader is one of them');
   assert.equal(e.status(25), startX);
   assert.equal(e.status(1), 4);
 
@@ -360,6 +389,6 @@ test('population sprites are painted at real locations, not in an artificial row
   e.reset_training(1);
   e.paint();
   assert.equal(dinos.length, 500);
-  assert.equal(new Set(dinos.map(d => d.x)).size, 1);
+  assert.ok(new Set(dinos.map(d => d.x)).size > 50, 'the crowd is spread out, not stacked');
   assert.equal(e.status(1), 500);
 });

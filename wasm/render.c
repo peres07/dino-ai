@@ -370,6 +370,11 @@ static unsigned shade(unsigned color,double intensity) {
     return ((unsigned)((color>>16)*a)<<16)|((unsigned)(((color>>8)&255)*a)<<8)|(unsigned)((color&255)*a);
 }
 
+static double neuron_radius(int expanded,int dodging,unsigned l,unsigned levels) {
+    if(game.birdless) return expanded?15.625:7.813;
+    return expanded?(dodging?8:16):dodging&&l>0&&l<levels-1?7:7.5;
+}
+
 static void neural(double x,double y,double w,double h,int expanded,int dodging) {
     const World *world=game.testing?&game.test:&game.train;
     unsigned leader=game.testing?1:world->lead, text_color=expanded?0xffffff:0;
@@ -388,12 +393,27 @@ static void neural(double x,double y,double w,double h,int expanded,int dodging)
     unsigned accent=game.birdless?dino_color(leader):orange;
     unsigned levels=s.depth+2, start=0;
     double gap=w/(levels-1);
+    /* Native hit test: the neuron under the pointer owns the highlight. */
+    int hover_l=-1, hover_i=-1;
+    if(game.pointer_inside) {
+        for(unsigned l=0;l<levels;l++) {
+            unsigned n=l==0?s.inputs:l==levels-1?s.outputs:s.hidden;
+            double r=neuron_radius(expanded,dodging,l,levels);
+            for(unsigned i=0;i<n;i++) {
+                double a=x+l*gap, b=node_y(y,h,n,i,l,levels,expanded);
+                double dx=game.pointer_x-a, dy=game.pointer_y-b;
+                if(dx*dx+dy*dy<=r*r) {hover_l=(int)l; hover_i=(int)i;}
+            }
+        }
+    }
     for(unsigned l=1;l<levels;l++) {
         unsigned prev=l==1?s.inputs:s.hidden,n=l==levels-1?s.outputs:s.hidden;
         for(unsigned j=0;j<n;j++) {
             double b=node_y(y,h,n,j,l,levels,expanded);
             for(unsigned i=0;i<prev;i++) {
                 double a=node_y(y,h,prev,i,l-1,levels,expanded), value=weights[start++], lv=t.values[l-1][i];
+                if(hover_l>=0 && !(l-1==(unsigned)hover_l && i==(unsigned)hover_i) &&
+                   !(l==(unsigned)hover_l && j==(unsigned)hover_i)) continue;
                 unsigned c=absd(value*lv)>.015?orange:expanded?0xe5e5e5:0x684925;
                 if(game.birdless) {
                     int activated=lv>0 && t.values[l][j]>0 && value>0;

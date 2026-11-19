@@ -88,4 +88,11 @@ Duas execuções novas dos PEs em Wine 11.22, cada uma numa cópia isolada com p
 
 **Ainda não certificado:** a auditoria das redes salvas não foi concluída nesta rodada por limite de uso do provedor; a comparação continua estática mais visual, não quadro a quadro com o PE. A ordem de `rand()` da inicialização nativa, os empates de ordenação e o acabamento de textos fora do HUD seguem sem prova de igualdade.
 
-**Defeito visual conhecido no port:** a edição **Com pássaros** desenha um disco escuro circular junto ao indivíduo líder. O artefato já existia antes desta rodada (também aparece no commit anterior), não tem correspondente nas capturas nativas e não foi rastreado até a chamada de desenho nesta auditoria. Ele não afeta a simulação nem os arquivos salvos.
+### Disco escuro do líder, pontuação e rede com cursor
+
+| Item | Causa e correção |
+|---|---|
+| Disco escuro junto ao líder (só Com pássaros) | Não era um sprite novo: eram **as 500 armas** desenhadas no mesmo ponto, porque o port colocava todos os indivíduos em `x=132`. `dinossauro::prepararDinossauros` soma a cada um `rand() % (2*150) - 150` px nativos (`0x440791–0x4407bc`, com o alcance `0x96` em `0x44d432`). O port passou a sortear `(r%300 - 150) * MOVEMENT_SCALE` por indivíduo; as armas deixam de formar o círculo preto. |
+| Dois acumuladores de aptidão | Varredura completa de `+0x88` a `+0xd0` nos dois PEs: só `+0xa0` recebe `fadd` (`0x44c91d`). `+0x90` e `+0xb0` são zerados no construtor (`0x4066ea`) e apenas lidos; não têm escritor incremental. A aptidão da partida equivale ao componente de acerto, que é o usado pelo port. **Não é divergência.** |
+| Rede ampliada com todas as conexões | O nativo faz *hit test* com a posição do mouse (`0x4056d1–0x40576a`) e desenha só as conexões do neurônio sob o cursor. O port agora recebe `pointer(inside,x,y)`, seleciona o neurônio no mesmo raio do desenho e filtra as arestas; sem cursor, mantém todas, como nas capturas do HUD. |
+| Deslocamento de `arvore3`/`arvore4` | O PE subtrai 40 e 2 px nativos de dois valores internos do desenho dessas camadas (`0x4520ae`, `0x4520b6`) e usa o escala/posição de cada imagem. As três imagens têm o mesmo tamanho e o port mantém a mesma origem; a diferença residual fica abaixo de 2 px nativos na área visível (raízes). |

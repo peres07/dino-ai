@@ -349,6 +349,15 @@ function bind() {
     event.preventDefault();
     api.graph_scroll(Math.sign(event.deltaX || event.deltaY)*12);
   }, {passive:false});
+  /* The native network view picks the neuron under the cursor. */
+  const point = event => {
+    const rect = $('scene').getBoundingClientRect();
+    api.pointer(1, (event.clientX-rect.left)/rect.width*logicalWidth,
+      (event.clientY-rect.top)/rect.height*logicalHeight);
+  };
+  $('scene').addEventListener('pointermove', point);
+  $('scene').addEventListener('pointerdown', point);
+  $('scene').addEventListener('pointerleave', () => api.pointer(0,0,0));
 }
 
 const seed = () => crypto.getRandomValues(new Uint32Array(1))[0];

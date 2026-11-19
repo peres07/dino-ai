@@ -188,7 +188,11 @@ static void prepare_world(World *w,unsigned n,int testing) {
             w->dinos[i] = (Dino){.x=MOVEMENT_SCALE*(325 + random_u32(&w->starts)%300), .energy=100, .alive=1};
             continue;
         }
-        w->dinos[i] = (Dino){.x=testing && i == 0 ? 86 : 132, .energy=100, .ammo=20,
+        /* Native prepararDinossauros spreads every individual around the
+           spawn X (rand()%300 - 150 native px) instead of stacking all of
+           them on one point. */
+        double spread=((int)(random_u32(&w->starts)%300)-150)*MOVEMENT_SCALE;
+        w->dinos[i] = (Dino){.x=testing && i == 0 ? 86 : 132+spread, .energy=100, .ammo=20,
             .alive=1, .bird={.timer=50}};
         if (!movement_only(testing)) {
             Bird *b=&w->dinos[i].bird;
@@ -788,6 +792,14 @@ API void command(unsigned cmd) {
         case 10: if (game.testing) restart_test(); break;
         case 11: game.overlay = game.overlay == 4 ? 0 : 4; break;
     }
+}
+
+/* Pointer position in logical canvas units. The native picks the network
+   neuron under the cursor and draws only that neuron's connections. */
+API void pointer(unsigned inside, double x, double y) {
+    game.pointer_inside = inside && __builtin_isfinite(x) && __builtin_isfinite(y);
+    game.pointer_x = x;
+    game.pointer_y = y;
 }
 
 API void graph_scroll(double delta) {

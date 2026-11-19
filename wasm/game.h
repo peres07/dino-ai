@@ -66,6 +66,8 @@ typedef struct {
     unsigned population, parents, limit, cfg_population, cfg_parents, cfg_limit;
     double mutation, cfg_mutation, camera_x, camera_y, zoom, graph_offset, tick_credit, elapsed, fps, mps;
     double speed;
+    double pointer_x, pointer_y;
+    unsigned pointer_inside;
     unsigned drawing, info, overlay, moving_avg, paused;
 } Game;
 

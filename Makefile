@@ -3,7 +3,7 @@ PYTHON ?= python3
 NODE ?= node
 WASM_LD ?= $(shell command -v wasm-ld || command -v wasm-ld-21 || find "$$(rustc --print sysroot 2>/dev/null)/lib/rustlib" -name rust-lld -print -quit 2>/dev/null)
 WASM_LINK = $(WASM_LD) $(if $(findstring rust-lld,$(WASM_LD)),-flavor wasm)
-EXPORTS = init init_birdless configure reset_training set_training start_firing frame paint status mode command graph_scroll model_buffer model_capacity model_load export_best export_leader
+EXPORTS = init init_birdless configure reset_training set_training start_firing frame paint status mode command graph_scroll pointer model_buffer model_capacity model_load export_best export_leader
 OBJECTS = $(patsubst wasm/%.c,build/%.o,$(wildcard wasm/*.c))
 PORT ?= 8000
 
