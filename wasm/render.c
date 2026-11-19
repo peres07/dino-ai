@@ -157,8 +157,9 @@ static void draw_obstacle(const World *w,const Obstacle *o,int front) {
         x-=(tree?795:170)*k;
         width=(tree?1800:1000)*k;
         height=(tree?1604:842)*k;
-        /* Image bottom on the ground line: the roots/cave base rest on the sand. */
-        y=GROUND-height;
+        /* Roots and cave base sink a few native pixels into the sand line so
+           they read as planted instead of hovering above it. */
+        y=GROUND+(tree?7:1)*k-height;
         if(!visible(x,y,width,height)) return;
         /* arvore3/arvore4 are allocated at manager+0x7c/+0x80 and drawn in
            pass 1, behind the runner (0x4520a0). arvore2 lives at +0x78 and
