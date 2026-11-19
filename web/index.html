@@ -41,8 +41,8 @@
       <section>
         <h2>Treinamento</h2>
         <form id="settings">
-          <!--birds--><label>Objetivo <select id="training-policy"><option value="2">1 · Só movimento</option><option value="0">2 · Só disparo</option><option value="1" selected>Movimento e disparo juntos</option></select></label>
-          <label class="stack" id="firing-dodge-field" hidden>Rede de movimento fixa <select id="firing-dodge"></select></label>
+          <!--birds--><label>Objetivo <select id="training-policy"><option value="2">1 · Só movimento</option><option value="0" selected>2 · Só disparo</option><option value="1">Movimento e disparo juntos</option></select></label>
+          <label class="stack" id="firing-dodge-field">Rede de movimento fixa <select id="firing-dodge"></select></label>
           <p class="hint">Treine o movimento, salve a rede e selecione-a para treinar só o disparo.</p><!--/birds-->
           <label>Indivíduos <input id="population-setting" type="number" min="2" max="$population" required value="$population"></label>
           <label>Pais selecionados <input id="parents" type="number" min="1" max="$population" required value="$parents"></label>

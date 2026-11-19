@@ -176,8 +176,9 @@ test('evolves generations, applies settings, and exports a compatible record', (
 
 test('complete training evolves movement and aim and saves both for testing', () => {
   const {e, records, load, view, dinos} = engine();
-  assert.equal(e.status(27), 1);
+  assert.equal(e.status(27), 0, 'the native training mode starts with a fixed movement network');
   assert.equal(load(dodge, 1), 1);
+  e.set_training(1, 1);
   e.configure(50, 8, .3, 30);
   e.reset_training(1);
   e.frame(50, 0, 0);
@@ -243,6 +244,7 @@ test('evaluates two training rounds before evolving or saving records', () => {
   assert.equal(e.status(29), 1);
   load(original('6611'), 2);
   e.mode(1);
+  for (let i=0;i<5;i++) e.command(6);
   for (let i = 0; i < 2400 && e.status(30) < 2; i++) e.frame(50, 0, 0);
   assert.ok(e.status(30) >= 2);
   assert.equal(e.status(0), 2);
@@ -259,7 +261,7 @@ test('manual mode pauses training, accepts movement, and can restart', () => {
   e.frame(50, 1 | 16 | 128 | 512, 0);
   assert.ok(e.status(22) > 0);
   assert.ok(e.status(25) > startX);
-  assert.ok(e.status(24) < startAngle);
+  assert.ok(e.status(24) > startAngle, 'A aims up');
   e.command(10);
   e.frame(20, 32 | 64, 0);
   assert.ok(Math.abs(e.status(22) - 9*1.8*(1200/1920)) < 1e-9);
@@ -281,7 +283,10 @@ test('camera, pause, speed, overlay and headless update are independent', () => 
   assert.equal(e.status(20), 0);
   e.paint();
   assert.deepEqual(draws.splice(0), [0]);
-  assert.ok(texts.splice(0).includes('Indivíduos Vivos:'));
+  const hud = texts.splice(0);
+  assert.ok(hud.includes('Indivíduos Vivos:'));
+  assert.ok(hud.includes('1.000x'), 'TA uses the native %.3fx format');
+  assert.ok(hud.some(t => /^\d+h:\d+m:\d+s$/.test(t)), 'training time uses %dh:%dm:%ds');
   e.command(2);
   e.paint();
   assert.deepEqual(draws.splice(0), [0]);

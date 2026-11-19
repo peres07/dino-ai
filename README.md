@@ -45,12 +45,13 @@ make test                      # testes do módulo compilado; precisa de Node.js
 
 ## Controles e redes
 
-- **Com pássaros:** em **Ajustes → Objetivo**, selecione **1 · Só movimento** e aplique. Quando quiser avançar, use **Salvar melhor rede de movimento**. Depois escolha **2 · Só disparo**, selecione a rede salva no campo **Rede de movimento fixa** e aplique. Somente o disparo evolui nessa etapa. Você também pode usar a rede original `redeDesviando` ou continuar no modo conjunto (padrão). Trocar de etapa ou de rede fixa reinicia a população e o gráfico, mas mantém os arquivos salvos.
+- **Com pássaros:** o padrão é **Só disparo** com a rede de movimento fixa `redeDesviando`, como no original. Para treinar a sua, selecione **1 · Só movimento** em **Ajustes → Objetivo**, aplique e use **Salvar melhor rede de movimento**. Depois escolha **2 · Só disparo** e indique a rede salva no campo **Rede de movimento fixa**. O modo conjunto continua disponível. Trocar de etapa ou de rede fixa reinicia a população e o gráfico, mas mantém os arquivos salvos.
 - **Sem pássaros:** treino com a rede de movimento de 10 entradas, duas camadas de 15 neurônios e 7 saídas. Inicia com 1000 indivíduos e 100 pais. Não usa `redeDesviando`, mira, armas ou pássaros atacantes; os obstáculos do cenário usam os sprites dessa edição.
 - **Treino:** em **Ajustes**, altere população, pais, mutação e limite por partida. Os ajustes entram na próxima geração.
 - **Controles e visualizações:** `N`/`M` mudam a velocidade; `Esc` desliga a renderização do cenário para acelerar; `P` pausa. `W`/`A`/`S`/`D` movem a câmera, `Q`/`E` dão zoom e Espaço restaura a câmera. `R` amplia a rede de mira, `V` a de movimento, `F` alterna a média móvel e `G`/`H` ampliam o gráfico. `U` alterna as informações. O histórico guarda até 8.192 gerações.
 - **Teste:** pressione Enter para abrir a lista. Escolha a melhor rede em treinamento ou uma rede salva. As setas controlam o dino ciano; `Z` dá pulo duplo, `X` superpulo, `C` dash; `A`/`D` miram, `S` dispara e `T` reinicia a partida. O treino não avança enquanto o teste estiver ativo. Enter volta ao treino.
 - **Arquivos:** aparecem 12 redes originais de mira na edição **Com pássaros** e 19 de movimento em **Sem pássaros**. O modo **Só movimento** salva `.mov` (rede de movimento no formato legado); **Só disparo** com `redeDesviando` original salva a rede de mira no formato legado; **Só disparo** com rede escolhida ou o modo conjunto salva `.dino`, que inclui as duas redes. Também é possível importar para a edição com pássaros uma rede de movimento exportada pela edição sem pássaros. Cada edição tem seu próprio banco local. Recarregar preserva as redes salvas, não a população nem o gráfico.
+- **Interface:** o HUD usa os mesmos formatos do original (`TA: 1.000x`, `0h:0m:0s`), três faixas de serra, moeda e chão nas proporções dos arquivos originais. A mira acompanha o sinal do original: `A` sobe e `D` desce.
 
 ## Relação com o original
 

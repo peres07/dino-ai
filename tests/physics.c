@@ -27,6 +27,19 @@ static void test_movement(void) {
     assert(close_to(d.y,9*1.8*k));
     assert(close_to(d.dash_v,18));
     assert(close_to(d.energy,20));
+
+    d=(Dino){.x=100,.y=40*k,.vy=3,.energy=100,.alive=1};
+    move_runner(&d,DUCK);
+    assert(close_to(d.y,35*k) && close_to(d.vy,-.4));
+    move_runner(&d,DUCK);
+    assert(close_to(d.y,29.6*k) && close_to(d.vy,-.8));
+    d=(Dino){.x=100,.y=40*k,.energy=100,.alive=1,.dash_used=1};
+    move_runner(&d,0);
+    move_runner(&d,DASH);
+    assert(!d.dash && d.energy==100); /* No extra dash by releasing the button in the air. */
+    d.y=0;
+    move_runner(&d,DASH);
+    assert(d.dash && d.energy==70);
 }
 
 static void test_obstacles(void) {
@@ -252,6 +265,19 @@ static void test_breeding(void) {
     for (unsigned j=0;j<TRAIN_WEIGHTS;j++) assert(game.next[0][j]>0);
 }
 
+static void test_ground_tiles(void) {
+    assert(ground_tile(0)==5);   /* multiple of 20 */
+    assert(ground_tile(1)==1);
+    assert(ground_tile(2)==2);
+    assert(ground_tile(3)==3);
+    assert(ground_tile(4)==0);
+    assert(ground_tile(10)==4);  /* multiple of 10 */
+    assert(ground_tile(20)==5);
+    assert(ground_tile(30)==4);
+    assert(ground_tile(-20)==5); /* pattern stays stable while scrolling */
+    assert(ground_tile(-1)==3);
+}
+
 int main(void) {
     test_movement();
     test_obstacles();
@@ -261,5 +287,6 @@ int main(void) {
     test_layout();
     test_breeding();
     test_shared_draw_order();
+    test_ground_tiles();
     return 0;
 }

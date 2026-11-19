@@ -68,3 +68,23 @@ O port agora aplica essas regras em ambas as edições e em todas as etapas de t
 **Recordes.** A seleção e a gravação agora usam a mesma avaliação concluída, sem promover um candidato por uma única partida isolada. Para a edição com pássaros, a média é calculada por indivíduo nas duas partidas antes de escolher o recordista (`SDL_main`, `0x4085ef–0x4086b2`). A posição X desempata apenas o líder vivo. A rede salva é a primeira com a maior média (`0x44af30`); a comparação usa a precisão integral do `double`, aceita igualdade e arredonda apenas o nome (`0x408710–0x4087bf`, `0x442c10`). O PE mantém ainda um recorde separado de distância global, que não é a aptidão da rede. No fim da partida o executável conserva três componentes (`0x4494c9–0x44952b`); só foi confirmado um incremento no componente de acerto (`+0xa0`). Não foram presumidos bônus para os outros dois (`+0x90` e `+0xb0`).
 
 **Limites restantes:** persistem diferenças no consumo de `rand()` pelo executável, nas chamadas feitas pela inicialização nativa e no RNG isolado do teste web. Empates completos, todos os ramos da pontuação e o acabamento visual não estão certificados como idênticos. A validação determinística em `make test` é do port, não uma reprodução quadro a quadro do PE.
+
+### Auditoria final: entrada, HUD e cenário
+
+Duas execuções novas dos PEs em Wine 11.22, cada uma numa cópia isolada com prefixo próprio a 1920×1080, confirmaram `TA: 1.000x`, `0h:0m:0s`, três faixas de serra e a moeda pequena. Os hashes dos `.exe` foram comparados antes e depois e não mudaram.
+
+| Item | Evidência | Aplicação |
+|---|---|---|
+| Formato do HUD | Strings `%.3fx` e `%dh:%dm:%ds` nos dois PEs (`0x4c5280`/`0x4c13e1`, `0x4c5201`/`0x4c1362`). Capturas novas confirmam `TA: 1.000x` e `0h:0m:0s`. | As duas edições passam a usar o mesmo formato compacto; antes a edição com pássaros mostrava `1.00` sem sufixo. |
+| Chão | `experimento::desenhar`, seleção em `0x445b93`: índice 5 em múltiplos de 20, 4 em múltiplos de 10, senão o ciclo 0–3. BMPs `chao0..5` medem **60×12 px nativos**. | Ladrilhos desenhados em 60×12 convertidos por `MOVEMENT_SCALE` e com o mesmo padrão de seleção. Antes eram 1,6× maiores. |
+| Serras | Capturas das duas edições e desenho em `0x443c40`/`0x44cc9b` mostram três faixas (`fundo0`/`fundo1`, 1200×90 nativos) com parallax distinto. | Três faixas nas duas edições, com tons escuro/médio/claro. |
+| Moeda | PNGs e sprites nativos medem 40×40; `0x449383–0x44939f` aplica a oscilação vertical senoidal. | Moeda quadrada de 40 px nativos com oscilação de ±5 px nativos. Antes era esticada para 40×50. |
+| Fumaça | Nove quadros `fumaca1..9` no atlas. | O índice agora alcança o nono quadro (antes parava no oitavo). |
+| Ave | `0x45038b–0x450486` escolhe entre `passaro1/2` e `passaro3/4` pelo rumo; o contador configurado é 10 e é comparado antes do incremento. | O sprite escolhe a família pelo sinal de `vx` e alterna o quadro a cada 11 passos. |
+| Mira | `Girar Cima`/`Girar Baixo` (`0x4c6029`, `0x4c6034`) são as saídas 0 e 1; ângulo positivo aponta para cima. | Corrigido o sinal do giro na rede e no teclado (`A` sobe, `D` desce) e o desenho da arma/projétil, que estava espelhado. |
+| Patinho e dash | Integrador comum (`0x446e60–0x446ec8` com `0x447340`): o agachar soma um deslocamento próprio sem substituir a gravidade; o dash volta a ficar disponível no chão, não ao soltar o botão. | `move_runner` aplica `-5` px nativos durante o agachamento e rearma o dash apenas no chão. |
+| Modo inicial | O PE com pássaros começa com 500 indivíduos, 50 pais e 35 pesos de mira, mantendo `redeDesviando` fixa e fora do DNA. | A edição com pássaros abre em **Só disparo** com `redeDesviando`; o treino conjunto continua opcional na interface. |
+
+**Ainda não certificado:** a passada de `arvore3`/`arvore4` tem evidências conflitantes entre duas leituras (antes ou depois do dino) e foi mantida como estava; a auditoria das redes salvas não foi concluída nesta rodada por limite de uso do provedor; e a comparação continua estática mais visual, não quadro a quadro com o PE. A ordem de `rand()` da inicialização nativa, os empates de ordenação e o acabamento de textos fora do HUD seguem sem prova de igualdade.
+
+**Defeito visual conhecido no port:** a edição **Com pássaros** desenha um disco escuro circular junto ao indivíduo líder. O artefato já existia antes desta rodada (também aparece no commit anterior), não tem correspondente nas capturas nativas e não foi rastreado até a chamada de desenho nesta auditoria. Ele não afeta a simulação nem os arquivos salvos.

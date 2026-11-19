@@ -328,12 +328,16 @@ static int obstacle_collision(const World *w, const Dino *d) {
     return 0;
 }
 
-/* Both PEs store 9/-4.5 for jump/left in game::game. Movement policy
-   and manual inputs use the same integrator, independent of aiming. */
+/* Both PEs store 9/-4.5 for jump/left. Duck adds a -5 displacement
+   before the floor check; it doesn't replace gravity. Dash re-arms on
+   the ground, not when its button is released. */
 static void move_runner(Dino *d,unsigned actions) {
     int grounded = d->y <= 0;
     if (d->smoke) d->smoke--;
-    if (grounded) d->double_used = d->super_used = 0;
+    if (grounded) {
+        d->double_used=d->super_used=0;
+        if (!d->dash) d->dash_used=0;
+    }
     if ((actions & JUMP) && grounded) d->vy = 9;
     d->duck = !!(actions & DUCK);
     if (d->duck && d->vy > 0) d->vy = 0;
@@ -343,17 +347,16 @@ static void move_runner(Dino *d,unsigned actions) {
     if ((actions & SUPER) && grounded && !(actions & JUMP) && !d->super_used && d->energy >= 50 && !d->double_used) {
         d->vy = 1.8*9; d->energy -= 50; d->super_used = 1; d->smoke = 15;
     }
-    if (!(actions & DASH)) d->dash_used = 0;
     if ((actions & DASH) && !d->dash_used && !d->dash && d->energy >= 30) {
         d->dash_v = 20; d->energy -= 30; d->dash = d->dash_used = 1; d->smoke = 14;
     }
     double dx = d->dash ? d->dash_v : 3*!!(actions & RIGHT) - 4.5*!!(actions & LEFT);
     d->x = clamp(d->x + dx*MOVEMENT_SCALE, 5*MOVEMENT_SCALE, W-45*MOVEMENT_SCALE);
-    d->y += d->vy*MOVEMENT_SCALE;
+    d->y += (d->vy-(d->duck && (!grounded || d->vy>0)?5:0))*MOVEMENT_SCALE;
     if (d->dash) {
         d->dash_v *= .9; d->vy = 0;
         if (d->dash_v < 1) d->dash = 0;
-    } else d->vy -= d->duck ? 5 : .4;
+    } else d->vy -= .4;
     if (d->y <= 0) d->y = d->vy = 0;
 
 }
@@ -406,8 +409,10 @@ static void turn_gun(Dino *d,double amount,int sign) {
 static void update_dino(World *w,Dino *d,unsigned actions,const double aim[3]) {
     if (d->cooldown) d->cooldown--;
     if (aim) {
-        turn_gun(d,aim[0],-1);
-        turn_gun(d,aim[1],1);
+        /* Output 0 is "Girar Cima" and output 1 "Girar Baixo"; a positive
+           model angle aims up, as in the native HUD. */
+        turn_gun(d,aim[0],1);
+        turn_gun(d,aim[1],-1);
         if (aim[2]>.5 && !d->cooldown && d->ammo>=5) {
             for (unsigned i=0;i<SHOT_SLOTS;i++) if (!d->shots[i].active) {
                 double width,height;
@@ -725,7 +730,7 @@ API void init(unsigned seed) {
     game.zoom = 1;
     prepare_normal();
     configure(500,50,1,90);
-    set_training(1, seed);
+    set_training(0, seed);
 }
 
 API void init_birdless(unsigned seed) {

@@ -81,4 +81,12 @@ unsigned runner_pose(const Dino *d,unsigned tick,double *width,double *height);
 static inline double clamp(double x, double a, double b) { return x < a ? a : x > b ? b : x; }
 static inline double absd(double x) { return __builtin_fabs(x); }
 
+/* chao0..5: multiples of 20 use 5, multiples of 10 use 4, the rest cycle. */
+static inline unsigned ground_tile(int index) {
+    int m=((index%20)+20)%20;
+    if(!m) return 5;
+    if(!(m%10)) return 4;
+    return (unsigned)(((index%4)+4)%4);
+}
+
 #endif

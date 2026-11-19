@@ -29,7 +29,9 @@ static void text(const char *s,double x,double y,double size,unsigned rgb) {
 static void decimal(double v,unsigned digits,double x,double y,double size,unsigned color) {
     char s[20]; unsigned n=0;
     if(!__builtin_isfinite(v) || absd(v)>10000000) {text("–",x,y,size,color);return;}
-    unsigned scale=digits==2?100:digits?10:1, value=(unsigned)(absd(v)*scale+.5);
+    unsigned scale=1;
+    for(unsigned i=0;i<digits;i++) scale*=10;
+    unsigned value=(unsigned)(absd(v)*scale+.5);
     if(digits) {
         for(unsigned i=0;i<digits;i++) {s[n++]=(char)('0'+value%10); value/=10;}
         s[n++]='.';
@@ -54,6 +56,34 @@ static void value_at(double v,unsigned digits,double old_x,double right,double y
 
 static double wrap(double x,double m) { return x-(int)(x/m)*m; }
 
+/* Native HUD uses "%dh:%dm:%ds" with no padding. */
+static void time_value(unsigned seconds,double x,double y,double size) {
+    char s[24]; unsigned n=0;
+    const unsigned part[3]={seconds/3600,seconds/60%60,seconds%60};
+    const char suffix[3]={'h','m','s'};
+    for(unsigned i=0;i<3;i++) {
+        unsigned v=part[i];
+        char digits[6]; unsigned k=0;
+        do {digits[k++]=(char)('0'+v%10); v/=10;} while(v);
+        while(k) s[n++]=digits[--k];
+        s[n++]=suffix[i];
+        if(i<2) s[n++]=':';
+    }
+    host_text(s,n,x,y,size,0);
+}
+
+/* Native TA field is a single "%.3fx" string. */
+static void speed_value(double v,double x,double y,double size) {
+    char s[20]; unsigned n=0;
+    unsigned value=(unsigned)(clamp(v,0,1000000)*1000+.5);
+    for(unsigned i=0;i<3;i++) {s[n++]=(char)('0'+value%10); value/=10;}
+    s[n++]='.';
+    do {s[n++]=(char)('0'+value%10); value/=10;} while(value);
+    for(unsigned i=0;i<n/2;i++) {char c=s[i];s[i]=s[n-1-i];s[n-1-i]=c;}
+    s[n++]='x';
+    host_text(s,n,x,y,size,0);
+}
+
 static int visible(double x,double y,double w,double h) {
     int fixed=game.testing&&!game.birdless;
     double zoom=fixed?1:game.zoom, dx=fixed?0:game.camera_x, dy=fixed?0:game.camera_y;
@@ -66,11 +96,12 @@ static void draw_dino(const Dino *d,unsigned tick,unsigned tint) {
     unsigned pose=runner_pose(d,tick,&w,&h);
     double y=GROUND-d->y;
     if(!visible(d->x,y-h,w,h)) return;
-    if(!game.birdless && d->smoke) sprite(SMOKE+((15-d->smoke)*8)/15,d->x-24,y-20,42,31,0,.65,0);
+    if(!game.birdless && d->smoke) sprite(SMOKE+((15-d->smoke)*8)/14,d->x-24,y-20,42,31,0,.65,0);
     sprite(DINO+pose,d->x,y-h,w,h,0,1,tint);
     if(movement_only(game.testing)) return;
     double gy=y-h*.5, gx=d->x+w*.5, c=dino_cos(d->angle), s=dino_sin(d->angle);
-    sprite(GUN,gx+9*c-15,gy+9*s-6.5,30,13,d->angle,1,0);
+    /* Canvas rotation is clockwise; the model's positive angle aims up. */
+    sprite(GUN,gx+9*c-15,gy-9*s-6.5,30,13,-d->angle,1,0);
 }
 
 static double shot_angle(const Shot *s) {
@@ -93,7 +124,7 @@ static void projectiles(const World *w) {
             double y=GROUND-p->y;
             if(!p->active || !visible(p->x-14,y-14,28,28)) continue;
             if(game.info) line(p->x,y,p->x+68*p->vx,y-68*p->vy,0x44525a,.65,.22);
-            sprite(BULLET,p->x-14,y-3.5,28,7,shot_angle(p),1,tint);
+            sprite(BULLET,p->x-14,y-3.5,28,7,-shot_angle(p),1,tint);
         }
     }
 }
@@ -140,26 +171,38 @@ void draw_game(void) {
         sprite(CLOUD,x,15+(i*131)%350,size,size*.28,0,1,0);
     }
     if(w->tick>480) sprite(night?MOON:SUN,965,44,63,63,0,.9,0);
-    double hill=wrap(w->distance*.24,W);
-    if(game.birdless) {
-        /* Two overlapping ridges, both visible through the transparent BMP key. */
-        for(unsigned layer=0;layer<2;layer++) for(int i=0;i<3;i++) {
-            double x=750*i-wrap(w->distance*(layer?.24:.15)+layer*237,750);
-            sprite(HILLS+layer,x,GROUND-(layer?55:62),751,layer?56:63,0,1,
-                night?0x56494a:layer?0xb5825b:0x79573d);
+    /* Both editions show three ridge bands (fundo0/fundo1 tinted). */
+    static const unsigned ridge[3]={0x513a29,0x79573d,0xb5825b};
+    for(unsigned layer=0;layer<3;layer++) {
+        unsigned tint=night?0x56494a:ridge[layer];
+        double height=64-7*layer;
+        if(game.birdless) {
+            for(int i=0;i<3;i++) {
+                double x=750*i-wrap(w->distance*(.15+.08*layer)+layer*237,750);
+                sprite(HILLS+(layer?1:0),x,GROUND-height+2,751,height,0,1,tint);
+            }
+        } else {
+            double hill=wrap(w->distance*(.16+.09*layer),W);
+            for(int i=0;i<2;i++) sprite(HILLS+((i+layer)&1),i*W-hill,GROUND-height+2,W,height,0,1,tint);
         }
-    } else for(unsigned i=0;i<2;i++) sprite(HILLS+i,i*W-hill,GROUND-61,W,62,0,1,night?0x56494a:0xb5825b);
+    }
     int fixed=game.testing&&!game.birdless;
     camera(fixed?0:game.camera_x,fixed?0:game.camera_y,fixed?1:game.zoom);
     rect(-1600,GROUND,W+3200,1200,night?0x504354:sand,1);
-    double offset=wrap(w->distance,360);
-    for(int i=-21;i<43;i++) if(visible(i*60-offset,GROUND-2,60,12))
-        sprite(GROUND_TILE+((i+24)%6),i*60-offset,GROUND-2,60,12,0,1,0xb5825b);
+    const double tile_w=60*MOVEMENT_SCALE, tile_h=12*MOVEMENT_SCALE;
+    double offset=wrap(w->distance,tile_w*6);
+    int shift=(int)(w->distance/tile_w);
+    for(int i=-44;i<76;i++) {
+        double x=i*tile_w-offset;
+        if(!visible(x,GROUND-2,tile_w,tile_h)) continue;
+        sprite(GROUND_TILE+ground_tile(i+shift),x,GROUND-2,tile_w,tile_h,0,1,0xb5825b);
+    }
     for(unsigned i=0;i<OBSTACLES;i++) draw_obstacle(w,&w->obstacles[i],0);
     double cx=w->coin_x-w->distance;
-    double coin_w=40*MOVEMENT_SCALE,coin_h=50*MOVEMENT_SCALE;
-    double coin_y=GROUND-w->coin_y;
-    if(!lead->coin_taken) sprite(COIN+(w->tick/4)%12,cx,coin_y-coin_h,coin_w,coin_h,0,1,0);
+    double coin=40*MOVEMENT_SCALE;
+    double bob=5*MOVEMENT_SCALE*dino_sin(w->tick*(2*PI/72));
+    double coin_y=GROUND-(w->coin_y+bob);
+    if(!lead->coin_taken) sprite(COIN+(w->tick/4)%12,cx,coin_y-coin,coin,coin,0,1,0);
     for(unsigned i=0;i<w->count;i++) {
         const Dino *d=&w->dinos[i];
         if(i!=w->lead && (d->alive||game.testing)) draw_dino(d,w->tick,dino_color(i));
@@ -167,7 +210,9 @@ void draw_game(void) {
     for(unsigned i=0;!movement_only(game.testing) && i<w->count;i++) {
         const Dino *d=&w->dinos[i];
         if((!game.testing && i!=w->lead) || !d->alive || !d->bird.active) continue;
-        sprite(BIRD+2+(w->tick/7)%2,d->bird.x,GROUND-d->bird.y-BIRD_H,BIRD_W,BIRD_H,0,1,0);
+        /* passaro1/2 face one way and 3/4 the other; frame toggles every 11 ticks. */
+        unsigned base=d->bird.vx>0?0:2;
+        sprite(BIRD+base+(w->tick/11)%2,d->bird.x,GROUND-d->bird.y-BIRD_H,BIRD_W,BIRD_H,0,1,0);
     }
     if(!movement_only(game.testing)) projectiles(w);
     draw_dino(lead,w->tick,dino_color(w->lead));
@@ -404,9 +449,7 @@ void draw_aux(void) {
         text("Indivíduos Vivos:",19,562,12,0); value_at(w->alive,0,200,221,562,12);
         text("Melhor Aptidão:",19,584,12,0); value_at(game.record_ready?game.record:-1.,0,200,221,584,12);
         text("Tempo treinando:",138,634,12,0);
-        decimal(elapsed/3600,0,154,656,10,0);text("h",176,656,10,0);
-        decimal(elapsed/60%60,0,185,656,10,0);text("m",199,656,10,0);
-        decimal(elapsed%60,0,212,656,10,0);text("s",226,656,10,0);
+        time_value((unsigned)elapsed,152,656,10);
     } else {
         double mean=game.test_rounds?game.test_sum/game.test_rounds:0;
         double variance=game.test_rounds?game.test_sum_sq/game.test_rounds-mean*mean:0;
@@ -421,10 +464,7 @@ void draw_aux(void) {
     text("MPS:",19,615,12,0); decimal(game.mps,0,63,615,12,0);
     text("FPS:",19,637,12,0); decimal(game.fps,0,63,637,12,0);
     text("TA:",19,659,12,0);
-    if(game.birdless) {
-        decimal(game.speed,0,63,659,12,0);
-        text(".000x",63+(game.speed>=100?3:game.speed>=10?2:1)*6.7,659,12,0);
-    } else decimal(game.speed,2,63,659,12,0);
+    speed_value(game.speed,63,659,12);
     text("Melhor Indivíduo",690,530,15,0);
     text("Pontuação:",688,565,12,0); value_at(leader->score,game.birdless?0:2,779,812,565,12);
     text("Velocidade:",688,587,12,0); value_at(w->speed,1,779,812,587,12);
