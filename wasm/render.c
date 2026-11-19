@@ -69,8 +69,8 @@ static void draw_dino(const Dino *d,unsigned tick,unsigned tint) {
     if(!game.birdless && d->smoke) sprite(SMOKE+((15-d->smoke)*8)/15,d->x-24,y-20,42,31,0,.65,0);
     sprite(DINO+pose,d->x,y-h,w,h,0,1,tint);
     if(movement_only(game.testing)) return;
-    double gy=y-(d->duck?17:29), c=dino_cos(d->angle), s=dino_sin(d->angle);
-    sprite(GUN,d->x+16+9*c-15,gy+9*s-6.5,30,13,d->angle,1,0);
+    double gy=y-h*.5, gx=d->x+w*.5, c=dino_cos(d->angle), s=dino_sin(d->angle);
+    sprite(GUN,gx+9*c-15,gy+9*s-6.5,30,13,d->angle,1,0);
 }
 
 static double shot_angle(const Shot *s) {
@@ -88,7 +88,7 @@ static void projectiles(const World *w) {
         const Dino *d=&w->dinos[i];
         if(!d->alive && i!=w->lead) continue;
         unsigned tint=dino_color(i);
-        for(unsigned j=0;j<6;j++) {
+        for(unsigned j=0;j<SHOT_SLOTS;j++) {
             const Shot *p=&d->shots[j];
             double y=GROUND-p->y;
             if(!p->active || !visible(p->x-14,y-14,28,28)) continue;
@@ -118,7 +118,7 @@ static void draw_obstacle(const World *w,const Obstacle *o,int front) {
     if(front || !visible(x,y,width,height)) return;
     unsigned id,tint=0;
     switch(o->sprite) {
-        case OB_BIRD_LOW: case OB_BIRD_HIGH: id=BIRD+(w->tick/7)%2; break;
+        case OB_BIRD: id=BIRD+(w->tick/11)%2; break;
         case OB_CHROME: id=CHROME; break;
         case OB_SPIKES: id=SPIKES; break;
         default: id=CACTUS+o->sprite; tint=game.birdless?0x138600:0x549723; break;
@@ -157,9 +157,9 @@ void draw_game(void) {
         sprite(GROUND_TILE+((i+24)%6),i*60-offset,GROUND-2,60,12,0,1,0xb5825b);
     for(unsigned i=0;i<OBSTACLES;i++) draw_obstacle(w,&w->obstacles[i],0);
     double cx=w->coin_x-w->distance;
-    double coin_size=game.birdless?25:28;
+    double coin_w=40*MOVEMENT_SCALE,coin_h=50*MOVEMENT_SCALE;
     double coin_y=GROUND-w->coin_y;
-    if(!lead->coin_taken) sprite(COIN+(w->tick/4)%12,cx-coin_size/2,coin_y-coin_size/2,coin_size,coin_size,0,1,0);
+    if(!lead->coin_taken) sprite(COIN+(w->tick/4)%12,cx,coin_y-coin_h,coin_w,coin_h,0,1,0);
     for(unsigned i=0;i<w->count;i++) {
         const Dino *d=&w->dinos[i];
         if(i!=w->lead && (d->alive||game.testing)) draw_dino(d,w->tick,dino_color(i));
@@ -167,7 +167,7 @@ void draw_game(void) {
     for(unsigned i=0;!movement_only(game.testing) && i<w->count;i++) {
         const Dino *d=&w->dinos[i];
         if((!game.testing && i!=w->lead) || !d->alive || !d->bird.active) continue;
-        sprite(BIRD+2+(w->tick/7)%2,d->bird.x-21,GROUND-d->bird.y-17,42,34,0,1,0);
+        sprite(BIRD+2+(w->tick/7)%2,d->bird.x,GROUND-d->bird.y-BIRD_H,BIRD_W,BIRD_H,0,1,0);
     }
     if(!movement_only(game.testing)) projectiles(w);
     draw_dino(lead,w->tick,dino_color(w->lead));
@@ -402,7 +402,7 @@ void draw_aux(void) {
         text("Geração:",19,518,12,0); value_at(game.generation-1,0,208,221,518,12);
         text("Partida:",19,540,12,0); text(game.birdless?"(1/1)":game.round==1?"(1/2)":"(2/2)",194,540,12,0);
         text("Indivíduos Vivos:",19,562,12,0); value_at(w->alive,0,200,221,562,12);
-        text("Melhor Aptidão:",19,584,12,0); value_at(game.record?game.record:-1.,0,200,221,584,12);
+        text("Melhor Aptidão:",19,584,12,0); value_at(game.record_ready?game.record:-1.,0,200,221,584,12);
         text("Tempo treinando:",138,634,12,0);
         decimal(elapsed/3600,0,154,656,10,0);text("h",176,656,10,0);
         decimal(elapsed/60%60,0,185,656,10,0);text("m",199,656,10,0);

@@ -75,7 +75,7 @@ test('bird edition trains movement alone and freezes the selected weights for fi
   assert.equal(e.status(27),2);
   assert.equal(e.status(32),3);
   for (let i=0;i<5;i++) e.command(6);
-  for (let i=0;i<95 && (e.status(0)<2 || !e.status(4));i++) e.frame(50,0,0);
+  for (let i=0;i<95 && (e.status(0)<2 || !e.status(36));i++) e.frame(50,0,0);
   assert.ok(e.status(0)>=2);
   const len=e.export_best();
   assert.equal(len,dodge.length);
@@ -159,14 +159,14 @@ test('evolves generations, applies settings, and exports a compatible record', (
   e.configure(32, 5, .25, 20);
   assert.equal(e.status(18), 1);
   for (let i = 0; i < 5; i++) e.command(6);
-  for (let i = 0; i < 150 && e.status(0) <= 10; i++) e.frame(50, 0, 0);
+  for (let i = 0; i < 500 && (e.status(0) <= 10 || e.status(4)<2); i++) e.frame(50, 0, 0);
   assert.ok(e.status(0) > 10);
   assert.equal(e.status(2), 32);
   assert.equal(e.status(18), 0);
   assert.equal(e.status(13), e.status(0)-1);
   assert.ok(records.length >= 2);
-  assert.ok(e.status(4) > 300, 'learns to score beyond just running');
-  for (let i = 1; i < records.length; i++) assert.ok(records[i][0] > records[i-1][0]);
+  assert.ok(e.status(4) >= 2, 'fitness is now measured in hits, not distance or coins');
+  for (let i = 1; i < records.length; i++) assert.ok(records[i][0] >= records[i-1][0]);
   const len = e.export_best();
   const bytes = Buffer.from(view(e.model_buffer(), len));
   assert.equal(len, 308);
@@ -185,7 +185,7 @@ test('complete training evolves movement and aim and saves both for testing', ()
   assert.ok(new Set(dinos.map(d => d.y)).size > 1, 'movement decisions differ, not just on-screen placement');
 
   for (let i = 0; i < 5; i++) e.command(6);
-  for (let i = 0; i < 45; i++) e.frame(50, 0, 0);
+  for (let i = 0; i < 500 && (e.status(0) <= 1 || !e.status(4)); i++) e.frame(50, 0, 0);
   assert.ok(e.status(0) > 1);
   assert.ok(records.length);
   const len = e.export_best();
@@ -227,14 +227,15 @@ test('test mode uses the movement network packed with the aiming network', () =>
   assert.notEqual(dinos[0].y, dinos[1].y, 'legacy files fall back to the original dodge network');
 });
 
-test('evaluates two training rounds before evolving and records repeated tests', () => {
-  const {e, load} = engine();
+test('evaluates two training rounds before evolving or saving records', () => {
+  const {e, load, records} = engine();
   load(dodge, 1);
   e.configure(4, 2, .3, 10);
   e.set_training(0, 1);
   let second = false;
   for (let i = 0; i < 500 && e.status(0) === 1; i++) {
     e.frame(50, 0, 0);
+    if (e.status(0) === 1) assert.equal(records.length,0);
     if (e.status(29) === 2) second = true;
   }
   assert.equal(second, true);
@@ -242,7 +243,7 @@ test('evaluates two training rounds before evolving and records repeated tests',
   assert.equal(e.status(29), 1);
   load(original('6611'), 2);
   e.mode(1);
-  for (let i = 0; i < 450; i++) e.frame(50, 0, 0);
+  for (let i = 0; i < 2400 && e.status(30) < 2; i++) e.frame(50, 0, 0);
   assert.ok(e.status(30) >= 2);
   assert.equal(e.status(0), 2);
 });

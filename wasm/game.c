@@ -29,12 +29,39 @@ static uint32_t random_u32(Rng *r) {
     return r->state = x;
 }
 
-static double unit(Rng *r) { return random_u32(r) / 4294967296.; }
+/* GSL's MT19937 stream used by the native obstacle/food integer sampler. */
+static void layout_seed(LayoutRng *r,uint32_t seed) {
+    r->state[0]=seed?seed:4357;
+    for (unsigned i=1;i<624;i++) {
+        uint32_t prev=r->state[i-1];
+        r->state[i]=1812433253u*(prev^(prev>>30))+i;
+    }
+    r->index=624;
+}
 
-static double noise(Rng *r) {
+static uint32_t layout_next(LayoutRng *r) {
+    if (r->index==624) {
+        for (unsigned i=0;i<624;i++) {
+            uint32_t y=(r->state[i]&0x80000000u)|(r->state[(i+1)%624]&0x7fffffffu);
+            r->state[i]=r->state[(i+397)%624]^(y>>1)^((y&1)?0x9908b0dfu:0);
+        }
+        r->index=0;
+    }
+    uint32_t y=r->state[r->index++];
+    y^=y>>11;
+    y^=(y<<7)&0x9d2c5680u;
+    y^=(y<<15)&0xefc60000u;
+    return y^(y>>18);
+}
+
+static unsigned layout_roll(LayoutRng *r,unsigned count) {
+    return (unsigned)(((uint64_t)layout_next(r)*count)>>32);
+}
+
+static double noise(LayoutRng *r) {
     /* Sum of uniforms (zero mean, unit variance). */
     double v = -3;
-    for (unsigned i = 0; i < 6; i++) v += unit(r);
+    for (unsigned i = 0; i < 6; i++) v += layout_next(r)/4294967296.;
     return v * 1.4142135623730951;
 }
 
@@ -55,9 +82,13 @@ static void prepare_normal(void) {
     }
 }
 
-static double normal(Rng *r) {
-    unsigned a=1+random_u32(r)%10000;
-    return radius[a]*phase_sin[random_u32(r)%10001];
+static double normal(LayoutRng *r) {
+    unsigned a,b;
+    do {
+        a=layout_roll(r,10001);
+        b=layout_roll(r,10001);
+    } while (!a);
+    return radius[a]*phase_sin[b];
 }
 
 static unsigned genome_size(void) {
@@ -92,40 +123,54 @@ static void seed_movement(void) {
             double base = game.dodge[j];
             /* Keep one reference; the rest explore several radii around the pretrained policy. */
             double spread = i ? (.12 + .16*(i%5)) * (12 + absd(base)) : 0;
-            moving[j] = i ? base + spread*noise(&game.rng) : base;
+            moving[j] = i ? base + spread*noise(&game.train.layout) : base;
         }
     }
 }
 
-static Obstacle make_obstacle(Rng *r, double x, unsigned serial) {
+static Obstacle make_obstacle(LayoutRng *r,double x,unsigned serial) {
     static const unsigned widths[] = {32,23,15,49,73,23,91,49,226};
     static const unsigned heights[] = {33,46,33,33,47,65,28,117,28};
     /* Types 11/12 in the PE are physical cave/tree obstacles. The large
        sprites are attached to them, not independent parallax scenery. */
-    unsigned kind = random_u32(r) % (game.birdless ? 13 : 15);
-    if (game.birdless && kind>=9) kind+=2; /* Keep this edition free of birds. */
+    unsigned type=layout_roll(r,game.birdless?13:14)+game.birdless;
+    /* Preserve the original single obstacle-bird slot only in the bird edition. */
+    unsigned kind=type==0?OB_BIRD:type<=9?type-1:type;
     const double k=MOVEMENT_SCALE;
     switch (kind) {
-        case OB_BIRD_LOW: case OB_BIRD_HIGH:
-            return (Obstacle){x,42*k,34*k,(kind==OB_BIRD_LOW?30:75)*k,1,(int)kind,-2.3,serial};
+        case OB_BIRD:
+            return (Obstacle){x,42*k,34*k,(5+layout_roll(r,101))*k,1,OB_BIRD,0,serial};
         case OB_CHROME: return (Obstacle){x+500*k,250*k,250*k,5*k,1,OB_CHROME,-5,serial};
         case OB_CAVE: return (Obstacle){x,665*k,665*k,35*k,1,OB_CAVE,0,serial};
         case OB_TREE: return (Obstacle){x+200*k,220*k,165*k,5*k,1,OB_TREE,0,serial};
         case OB_SPIKES: return (Obstacle){x,1400*k,30*k,5*k,1,OB_SPIKES,0,serial};
         default: {
-            double scale=1+.5*unit(r);
-            return (Obstacle){x,widths[kind]*scale*k,heights[kind]*scale*k,5*k,scale,(int)kind,0,serial};
+            return (Obstacle){x,widths[kind]*k,heights[kind]*k,5*k,1,(int)kind,0,serial};
         }
     }
 }
 
 static double next_obstacle_x(World *w,const Obstacle *prev,int initial) {
     double width=initial?prev->w/prev->scale:prev->w;
-    return prev->x+width+MOVEMENT_SCALE*(600+150*unit(&w->rng)+(prev->sprite==OB_TREE?100:0));
+    double x=prev->x+width+MOVEMENT_SCALE*(600+layout_roll(&w->layout,151)+(prev->sprite==OB_TREE?100:0));
+    return w->distance+(int)((x-w->distance)/MOVEMENT_SCALE)*MOVEMENT_SCALE;
 }
 
-static void reset_world(World *w, unsigned n, unsigned seed, int testing) {
-    w->rng.state = seed ? seed : 1;
+static void reset_food(World *w) {
+    w->coin_x=w->distance+MOVEMENT_SCALE*layout_roll(&w->layout,1881);
+    w->coin_y=(150-25)*MOVEMENT_SCALE;
+    for (unsigned i=0;i<w->count;i++) w->dinos[i].coin_taken=0;
+}
+
+static void seed_world(World *w,unsigned seed) {
+    layout_seed(&w->layout,seed);
+    w->starts.state=seed^0xb5629a49u;
+    if (!w->starts.state) w->starts.state=1;
+}
+
+static void spawn_bird(World *w,Bird *b);
+
+static void prepare_world(World *w,unsigned n,int testing) {
     w->tick = w->lead = w->winner = 0;
     w->alive = w->count = n;
     w->serial = 0;
@@ -134,36 +179,45 @@ static void reset_world(World *w, unsigned n, unsigned seed, int testing) {
     w->speed_step=.001;
     double x=W;
     for (unsigned i = 0; i < OBSTACLES; i++) {
-        w->obstacles[i] = make_obstacle(&w->rng, x, w->serial++);
-        x=next_obstacle_x(w,&w->obstacles[i],1);
+        w->obstacles[i] = make_obstacle(&w->layout, x, w->serial++);
+        if (i+1<OBSTACLES) x=next_obstacle_x(w,&w->obstacles[i],1);
     }
-    w->coin_x = game.birdless ? unit(&w->rng)*(W-40*MOVEMENT_SCALE) : 535;
-    w->coin_y = game.birdless ? 125*MOVEMENT_SCALE : 62;
+    reset_food(w);
     for (unsigned i = 0; i < n; i++) {
         if (game.birdless) {
-            w->dinos[i] = (Dino){.x=MOVEMENT_SCALE*(325 + random_u32(&w->rng)%300), .energy=100, .alive=1};
+            w->dinos[i] = (Dino){.x=MOVEMENT_SCALE*(325 + random_u32(&w->starts)%300), .energy=100, .alive=1};
             continue;
         }
-        w->dinos[i] = (Dino){.x=testing && i == 0 ? 86 : 132, .energy=100, .ammo=20, .angle=-.18,
-            .alive=1, .bird={.timer=48}};
+        w->dinos[i] = (Dino){.x=testing && i == 0 ? 86 : 132, .energy=100, .ammo=20,
+            .alive=1, .bird={.timer=50}};
+        if (!movement_only(testing)) {
+            Bird *b=&w->dinos[i].bird;
+            spawn_bird(w,b);
+            b->active=0;
+            b->timer=50;
+        }
     }
 }
 
-static Obstacle nearest(const World *w, const Dino *d) {
+static void reset_world(World *w,unsigned n,unsigned seed,int testing) {
+    seed_world(w,seed);
+    prepare_world(w,n,testing);
+}
+
+static const Obstacle *nearest_obstacle(const Obstacle obstacles[OBSTACLES],double x) {
     for (unsigned i = 0; i < OBSTACLES; i++) {
-        Obstacle o = w->obstacles[i];
-        if (o.x + o.w > w->distance + d->x + 2) return o;
+        if (obstacles[i].x+obstacles[i].w>x) return &obstacles[i];
     }
-    return (Obstacle){.x=w->distance + d->x + W};
+    return 0;
 }
 
 unsigned dodge_actions(const World *w, const Dino *d, int test, unsigned i, Trace *trace) {
-    Obstacle o = nearest(w, d);
-    double obstacle_drift=o.drift;
+    const Obstacle *o=nearest_obstacle(w->obstacles,w->distance+d->x);
+    double obstacle_drift=o?o->drift:0;
     /* Native Y starts at 25; world/render use height above the floor. */
     double scale=MOVEMENT_SCALE, floor_y=25;
-    double in[10] = {d->x/W, (d->y/scale+floor_y)/540., o.w/(250*scale), o.h/(250*scale),
-        (o.x - w->distance - d->x)/(W*.5), (o.y/scale+floor_y)/130, (w->speed*w->speed)/100,
+    double in[10] = {d->x/W, (d->y/scale+floor_y)/540., o?o->w/(250*scale):0, o?o->h/(250*scale):0,
+        ((o?o->x-w->distance:W)-d->x)/(W*.5), o?(o->y/scale+floor_y)/130:0, (w->speed*w->speed)/100,
         d->energy/100, obstacle_drift*obstacle_drift/25, (w->coin_x-w->distance-d->x)/W};
     double out[7];
     Shape shape;
@@ -174,37 +228,64 @@ unsigned dodge_actions(const World *w, const Dino *d, int test, unsigned i, Trac
     return actions;
 }
 
+static int bird_in_view(const Bird *b) {
+    return b->active && b->x+BIRD_W>0 && b->x<W && b->y+BIRD_H>-25*MOVEMENT_SCALE && b->y<BIRD_CEILING;
+}
+
+static void aim_sensors(const World *w,const Dino *d,double in[4]) {
+    for (unsigned j=0;j<4;j++) in[j]=0;
+    if (!bird_in_view(&d->bird)) return;
+    double dx=d->bird.x-d->x,dy=d->bird.y-d->y;
+    in[0]=1-__builtin_sqrt(dx*dx+dy*dy)/W;
+    in[1]=d->ammo/20;
+    double width,height;
+    runner_pose(d,w->tick,&width,&height);
+    dx+=(BIRD_W-width)*.5;
+    dy+=(BIRD_H-height)*.5;
+    double dist=__builtin_sqrt(dx*dx+dy*dy);
+    if (dist>0) {
+        double c=dino_cos(d->angle),s=dino_sin(d->angle);
+        in[2]=(dx*c-dy*s)/dist;
+        in[3]=(dy*c+dx*s)/dist;
+    }
+}
+
 void aim_outputs(const World *w, const Dino *d, int test, unsigned i, double out[3], Trace *trace) {
     if (movement_only(test)) {
         out[0] = out[1] = out[2] = 0;
         if (trace) *trace = (Trace){0};
         return;
     }
-    double in[4] = {0};
-    if (d->bird.active) {
-        double dx = d->bird.x - d->x - 16, dy = d->bird.y - d->y - (d->duck ? 17 : 29);
-        double dist = __builtin_sqrt(dx*dx + dy*dy);
-        double c = dino_cos(d->angle), s = dino_sin(d->angle);
-        in[0] = 1 - dist/W;
-        in[1] = d->ammo/20;
-        if (dist > .001) { in[2] = (dx*c - dy*s)/dist; in[3] = (-dy*c - dx*s)/dist; }
-    }
+    double in[4];
+    aim_sensors(w,d,in);
     if (test) infer(game.model_shape, game.model, in, out, trace);
     else infer(TRAIN_SHAPE, game.genes[i], in, out, trace);
-    (void)w;
 }
 
-static void update_bird(World *w, Dino *d) {
+static void spawn_bird(World *w,Bird *b) {
+    unsigned side=layout_roll(&w->layout,5);
+    if (side==0 || side==4) {
+        *b=(Bird){.x=side==0?-50*MOVEMENT_SCALE:W+50*MOVEMENT_SCALE,
+            .y=(300-25+layout_roll(&w->layout,431))*MOVEMENT_SCALE,.active=1};
+    } else {
+        *b=(Bird){.x=((double)layout_roll(&w->layout,2021)-50)*MOVEMENT_SCALE,.y=BIRD_CEILING,.active=1};
+    }
+}
+
+static void update_bird(Dino *d) {
     Bird *b = &d->bird;
     if (!b->active) {
-        if (--b->timer > 0) return;
-        unsigned phase = (w->tick / 150) % 5;
-        *b = (Bird){.x=d->x + 465 + 20*phase, .y=94 + 24*phase, .vx=-4.8, .active=1};
+        if (b->timer>0 && --b->timer>0) return;
+        b->active=1;
+        return;
     }
+    double dx=d->x-b->x,dy=d->y-b->y;
+    double dist=__builtin_sqrt(dx*dx+dy*dy);
+    double speed=dist>0?clamp(dist,0,5*MOVEMENT_SCALE)/dist:0;
+    b->vx=dx*speed;
+    b->vy=dy*speed;
     b->x += b->vx;
-    b->vy = clamp(b->vy + (d->y + 23 - b->y)*.0045, -3.9, 3.9);
-    b->y = clamp(b->y + b->vy, 15, H - 40);
-    if (b->x < -60) { b->active = 0; b->timer = 97; }
+    b->y += b->vy;
 }
 
 static int overlap(double a, double b, double c, double d) { return a < d && c < b; }
@@ -277,71 +358,109 @@ static void move_runner(Dino *d,unsigned actions) {
 
 }
 
-/* Movement-only PE: processarAmbiente (446a20), regenerarStamina
-   (449840) and adicionarPontuacaoDinos (449af0). */
+static void collect_food(const World *w,Dino *d) {
+    if (d->coin_taken) return;
+    double width,height;
+    runner_pose(d,w->tick,&width,&height);
+    const double k=MOVEMENT_SCALE;
+    double x=w->coin_x-w->distance,y=w->coin_y;
+    if (overlap(d->x+.1*width,d->x+width,x+2*k,x+36*k) &&
+        overlap(d->y+.1*height,d->y+height,y+4*k,y+46*k)) {
+        d->coin_taken=1;
+        d->coins++;
+    }
+}
+
+/* Both PEs compare the next obstacle before and after the tick. The serial
+   identifies the same obstacle even when the port's queue is shifted. */
+static int changed_obstacle(const Obstacle *before,const Obstacle *after) {
+    return before && (!after || before->serial!=after->serial);
+}
+
+static void regenerate(Dino *d,const Obstacle *before,const Obstacle *after) {
+    if (!d->alive) return;
+    d->energy=clamp(d->energy+.01,0,100);
+    if (!game.birdless) d->ammo=clamp(d->ammo+.01,0,20);
+    if (!changed_obstacle(before,after)) return;
+    switch (before->sprite) {
+        case 7: case 8: d->energy=clamp(d->energy+20,0,100); break; /* Native obstacle types 8/9. */
+        case OB_CHROME: case OB_TREE: d->energy=clamp(d->energy+50,0,100); break;
+        case OB_SPIKES: d->energy=100; break;
+    }
+}
+
 static void update_runner(World *w, Dino *d, unsigned actions) {
     move_runner(d,actions);
     if (obstacle_collision(w,d)) { d->alive=0; w->alive--; return; }
-    double food_dx = w->coin_x - w->distance - d->x;
-    if (!d->coin_taken && absd(food_dx/MOVEMENT_SCALE-11) < 25 && absd((w->coin_y-d->y)/MOVEMENT_SCALE-18) < 28) {
-        d->coin_taken = 1; d->coins++;
-    }
-    d->energy = clamp(d->energy + .01, 0, 100);
-    Obstacle next = nearest(w,d);
-    if (next.serial > d->next_obstacle) {
-        d->next_obstacle = next.serial;
-        d->energy = clamp(d->energy + 20, 0, 100);
-        d->score += d->energy > 50 ? 2 : 1;
-    }
-    d->score += .001*(1 - absd(food_dx)/W);
+    collect_food(w,d);
 }
 
-static void update_dino(World *w, Dino *d, unsigned actions, double steer) {
-    if (d->cooldown) d->cooldown--;
-    d->energy = clamp(d->energy + .01, 0, 100);
-    d->ammo = clamp(d->ammo + .01, 0, 20);
-    move_runner(d,actions);
+static void turn_gun(Dino *d,double amount,int sign) {
+    if (!(amount>0) || d->ammo<1) return;
+    amount=clamp(amount,0,1000); /* Also accept legacy models with unbounded outputs safely. */
+    d->angle+=sign*amount*(PI/15);
+    d->angle-=(int)(d->angle/(2*PI))*(2*PI);
+    d->ammo=clamp(d->ammo-.167*amount,0,20);
+}
 
-    d->angle = clamp(d->angle + steer, -PI, .7);
-    if ((actions & SHOOT) && !d->cooldown && d->ammo >= 2) {
-        for (unsigned i = 0; i < 6; i++) if (!d->shots[i].active) {
-            double c = dino_cos(d->angle), s = dino_sin(d->angle);
-            d->shots[i] = (Shot){d->x + 16 + 26*c, d->y + (d->duck ? 17 : 29) - 26*s, 20*c, -20*s, 1};
-            d->ammo -= 2;
-            d->cooldown = 13;
-            break;
+static void update_dino(World *w,Dino *d,unsigned actions,const double aim[3]) {
+    if (d->cooldown) d->cooldown--;
+    if (aim) {
+        turn_gun(d,aim[0],-1);
+        turn_gun(d,aim[1],1);
+        if (aim[2]>.5 && !d->cooldown && d->ammo>=5) {
+            for (unsigned i=0;i<SHOT_SLOTS;i++) if (!d->shots[i].active) {
+                double width,height;
+                runner_pose(d,w->tick,&width,&height);
+                double speed=(20+60*(clamp(aim[2],.5,1000)-.5))*MOVEMENT_SCALE;
+                d->shots[i]=(Shot){d->x+width*.5,d->y+height*.5,
+                    speed*dino_cos(d->angle),-speed*dino_sin(d->angle),1};
+                d->ammo-=5;
+                d->cooldown=10;
+                break;
+            }
         }
     }
+    move_runner(d,actions);
 
     Bird *b = &d->bird;
-    for (unsigned i = 0; i < 6; i++) {
+    double width,height;
+    runner_pose(d,w->tick,&width,&height);
+    if (obstacle_collision(w,d)) d->alive=0;
+    if (b->active && overlap(d->x+.1*width,d->x+width,b->x+2*MOVEMENT_SCALE,b->x+BIRD_W-4*MOVEMENT_SCALE) &&
+        overlap(d->y+.1*height,d->y+height,b->y+4*MOVEMENT_SCALE,b->y+BIRD_H-4*MOVEMENT_SCALE)) d->alive=0;
+
+    for (unsigned i=0;i<SHOT_SLOTS;i++) {
         Shot *p = &d->shots[i];
         if (!p->active) continue;
         p->x += p->vx; p->y += p->vy;
-        if (p->x < 0 || p->x > W+50 || p->y < 0 || p->y > H) p->active = 0;
-        if (b->active && absd(p->x-b->x) < 24 && absd(p->y-b->y) < 19) {
-            p->active = b->active = 0; b->timer = 100; d->hits++;
+        if (p->x<0 || p->x>W || p->y<-25*MOVEMENT_SCALE || p->y>(1080-25)*MOVEMENT_SCALE) {
+            p->active=0;
+            continue;
+        }
+        double size=3*MOVEMENT_SCALE;
+        if (bird_in_view(b) && overlap(p->x,p->x+size,b->x+.2*BIRD_W,b->x+BIRD_W) &&
+            overlap(p->y,p->y+size,b->y+.2*BIRD_H,b->y+BIRD_H)) {
+            double dx=b->x-d->x,dy=b->y-d->y;
+            d->score+=1+__builtin_sqrt(dx*dx+dy*dy)/W;
+            d->ammo=20;
+            d->hits++;
+            spawn_bird(w,b);
         }
     }
 
-    double coin = w->coin_x - w->distance;
-    if (!d->coin_taken && absd(coin-d->x-11) < 25 && absd(w->coin_y-d->y-18) < 28) {
-        d->coin_taken = 1;
-        d->coins++;
-        d->energy = clamp(d->energy + 15, 0, 100);
-        d->ammo = clamp(d->ammo + 5, 0, 20);
-    }
-
-    double width,height;
-    runner_pose(d,w->tick,&width,&height);
-    if (obstacle_collision(w,d)) d->alive = 0;
-    if (b->active && overlap(d->x+.1*width,d->x+.9*width,b->x-14,b->x+14) &&
-        overlap(d->y+.1*height,d->y+height,b->y-10,b->y+10)) d->alive=0;
-    d->score = w->distance*.108 + d->hits*220 + d->coins*38;
     if (!d->alive) w->alive--;
+    else collect_food(w,d);
+}
+
+static int better_live_dino(const Dino *a,const Dino *b) {
+    return a->score>b->score || (a->score==b->score && !game.birdless && a->x>b->x);
 }
 
 static void step_world(World *w, int test, unsigned input) {
+    Obstacle previous[OBSTACLES];
+    for (unsigned i=0;i<OBSTACLES;i++) previous[i]=w->obstacles[i];
+    double previous_distance=w->distance;
     w->tick++;
     for (unsigned i=0;i<OBSTACLES;i++) {
         Obstacle *o=&w->obstacles[i];
@@ -354,28 +473,17 @@ static void step_world(World *w, int test, unsigned input) {
     }
     double scroll=w->speed*MOVEMENT_SCALE;
     w->distance+=scroll;
-    if (w->obstacles[0].x + w->obstacles[0].w < w->distance - 90) {
+    if (w->obstacles[0].x < w->distance-1500*MOVEMENT_SCALE) {
         for (unsigned i = 1; i < OBSTACLES; i++) w->obstacles[i-1] = w->obstacles[i];
         const Obstacle *last = &w->obstacles[OBSTACLES-2];
         double x=next_obstacle_x(w,last,0);
-        w->obstacles[OBSTACLES-1] = make_obstacle(&w->rng, x, w->serial++);
+        w->obstacles[OBSTACLES-1] = make_obstacle(&w->layout, x, w->serial++);
     }
-    if (game.birdless) {
-        /* Food is screen-relative and periodically respawns (comida::reiniciar). */
-        w->coin_x += scroll;
-        if (!(w->tick % 1001)) {
-            w->coin_x = w->distance + unit(&w->rng)*(W-40*MOVEMENT_SCALE);
-            for (unsigned i=0; i<w->count; i++) w->dinos[i].coin_taken=0;
-        }
-        w->coin_y = MOVEMENT_SCALE*(125 + 5*dino_sin((w->tick%72)*PI/36));
-    } else if (w->coin_x < w->distance - 45) {
-        w->coin_x += 690 + unit(&w->rng)*420;
-        w->coin_y = 24 + unit(&w->rng)*87;
-        for (unsigned i = 0; i < w->count; i++) w->dinos[i].coin_taken = 0;
-    }
-    double highest_alive = -1, highest = -1;
+    w->coin_x+=scroll; /* Screen-relative in both originals. */
+    unsigned lead=w->count,winner=w->count;
     for (unsigned i = 0; i < w->count; i++) {
         Dino *d = &w->dinos[i];
+        const Obstacle *before=d->alive?nearest_obstacle(previous,previous_distance+d->x):0;
         if (d->alive && game.birdless) {
             unsigned actions = test && !i ? input : dodge_actions(w,d,test,i,0);
             update_runner(w,d,actions);
@@ -383,25 +491,36 @@ static void step_world(World *w, int test, unsigned input) {
             unsigned actions = test && !i ? input & 127u : dodge_actions(w,d,test,i,0);
             update_dino(w,d,actions,0);
         } else if (d->alive) {
-            update_bird(w, d);
             unsigned actions;
-            double steer;
+            double aim[3];
             if (test && i == 0) {
                 actions = input;
-                steer = .077 * (((actions & AIM_DOWN) != 0) - ((actions & AIM_UP) != 0));
+                aim[0]=(actions&AIM_UP)?.5:0;
+                aim[1]=(actions&AIM_DOWN)?.5:0;
+                aim[2]=(actions&SHOOT)?1:0;
             } else {
-                double out[3];
                 actions = dodge_actions(w, d, test, i, 0);
-                aim_outputs(w, d, test, i, out, 0);
-                steer = .115 * (clamp(out[1],0,1) - clamp(out[0],0,1));
-                if (out[2] > .5) actions |= SHOOT;
+                aim_outputs(w,d,test,i,aim,0);
             }
-            update_dino(w, d, actions, steer);
+            update_bird(d);
+            update_dino(w,d,actions,aim);
         }
-        if (d->score > highest) { w->winner = i; highest = d->score; }
-        if (d->alive && d->score > highest_alive) { w->lead = i; highest_alive = d->score; }
+        if (d->alive) {
+            double x=w->distance+d->x;
+            const Obstacle *after=nearest_obstacle(w->obstacles,x);
+            regenerate(d,before,after);
+            if (movement_only(test)) {
+                double edge=after?after->x+after->w:w->distance+W;
+                double bonus=changed_obstacle(before,after)?(d->energy>50?2:1):0;
+                d->score+=bonus+.001*(1-(edge-x+absd(w->coin_x-x))/W);
+            }
+        }
+        if (winner==w->count || d->score>w->dinos[winner].score) winner=i;
+        if (d->alive && (lead==w->count || better_live_dino(d,&w->dinos[lead]))) lead=i;
     }
-    if (!w->alive) w->lead = w->winner;
+    if (!(w->tick%1001)) reset_food(w);
+    if (winner<w->count) w->winner=winner;
+    w->lead=lead<w->count?lead:w->winner;
     double next=w->speed+w->speed_step;
     if (next>10 || next<5) w->speed_step=-w->speed_step;
     w->speed=clamp(next,5,10);
@@ -422,15 +541,40 @@ static unsigned write_record(unsigned char *out, const double *genes) {
 }
 
 static void update_record(void) {
-    unsigned best = (unsigned)game.train.dinos[game.train.winner].score;
-    if (best <= game.record || !game.train.tick) return;
+    double score=game.train.dinos[game.train.winner].score;
+    if (!(score>=0 && score<4294967295.) || !game.train.tick) return;
+    if (game.record_ready && score<game.record_score) return;
+    unsigned best=(unsigned)score;
+    double fraction=score-best;
+    best+=fraction>.5 || (fraction==.5 && (best&1)); /* Native %.0f record name. */
     game.record = best;
+    game.record_ready=1;
+    game.record_score=score;
     unsigned weights = genome_size();
     for (unsigned i = 0; i < weights; i++) game.best[i] = game.genes[game.train.winner][i];
     /* Separate buffer: a browser callback must not invalidate an incoming model. */
     unsigned char saved[RECORD_BYTES];
     unsigned size = write_record(saved, game.best);
     store_record(best, saved, size, record_type());
+}
+
+static void breed(unsigned i,unsigned parents,unsigned weights) {
+    unsigned p=game.rank[i%parents];
+    double sigma=game.deviations[p];
+    game.next_dev[i]=sigma;
+    int mutate=game.birdless || i!=0;
+    for (unsigned j=0;j<weights;j++) {
+        double v=game.genes[p][j];
+        if (mutate && game.mutation>0) {
+            /* The extra movement controller in the bird edition is a web extension. */
+            int seeded_move=!game.birdless && (game.move_only || j>=TRAIN_WEIGHTS);
+            double scale=seeded_move?1+.12*absd(game.dodge[j-(game.move_only?0:TRAIN_WEIGHTS)]):1;
+            v+=game.mutation*sigma*scale*normal(&game.train.layout);
+        }
+        game.next[i][j]=v;
+    }
+    if (!game.birdless && !game.move_only && mutate && game.mutation>0)
+        game.next[i][layout_roll(&game.train.layout,TRAIN_WEIGHTS)]=0;
 }
 
 static void next_generation(void) {
@@ -443,11 +587,15 @@ static void next_generation(void) {
         mean += w->dinos[i].score;
         for (unsigned j = 0; j < weights; j++) center[j] += game.genes[i][j] / w->count;
         unsigned pos = i;
-        while (pos > 0 && w->dinos[game.rank[pos-1]].score < w->dinos[i].score) {
+        while (pos>0 && w->dinos[i].score>w->dinos[game.rank[pos-1]].score) {
             game.rank[pos] = game.rank[pos-1]; pos--;
         }
         game.rank[pos] = i;
     }
+    /* The native trainer saves after comparing the evaluation average, not
+       during either individual round. */
+    game.train.winner=game.rank[0];
+    update_record();
     for (unsigned i = 0; i < w->count; i++) {
         double v = 0;
         for (unsigned j = 0; j < weights; j++) {
@@ -465,37 +613,14 @@ static void next_generation(void) {
     game.parents = game.cfg_parents;
     game.limit = game.cfg_limit;
     game.mutation = game.cfg_mutation;
-    for (unsigned i = 0; i < game.population; i++) {
-        if (game.birdless) {
-            /* 4482b0: clone ranked i % parents. 448830 walks every gene,
-               including those of the top clones. Preserve the record separately. */
-            unsigned p = game.rank[i % parents];
-            game.next_dev[i] = game.deviations[p];
-            for (unsigned j=0;j<weights;j++)
-                game.next[i][j] = game.genes[p][j] + game.mutation*game.next_dev[i]*normal(&game.rng);
-            continue;
-        }
-        unsigned a = game.rank[i == 0 ? 0 : random_u32(&game.rng) % parents];
-        unsigned b = game.rank[i == 0 ? 0 : random_u32(&game.rng) % parents];
-        double sigma = (game.deviations[a] + game.deviations[b])*.5;
-        if (i) sigma = clamp(sigma * (1 + .13 * noise(&game.rng)), .075, 3);
-        game.next_dev[i] = sigma;
-        for (unsigned j = 0; j < weights; j++) {
-            int move = game.move_only || (game.joint && j >= TRAIN_WEIGHTS);
-            /* Inherit a coherent movement controller from one parent, then mutate it. */
-            double v = move ? game.genes[a][j] : (game.genes[a][j]+game.genes[b][j])*.5;
-            double scale = move ? 1 + .12*absd(game.dodge[j-(game.move_only ? 0 : TRAIN_WEIGHTS)]) : 1;
-            if (i) v += noise(&game.rng)*game.mutation*sigma*scale;
-            game.next[i][j] = clamp(v, move ? -2048 : -100, move ? 2048 : 100);
-        }
-    }
+    for (unsigned i=0;i<game.population;i++) breed(i,parents,weights);
     for (unsigned i = 0; i < game.population; i++) {
         game.deviations[i] = game.next_dev[i];
         for (unsigned j = 0; j < weights; j++) game.genes[i][j] = game.next[i][j];
     }
     game.generation++;
     game.round = 1;
-    reset_world(&game.train, game.population, game.birdless ? random_u32(&game.rng) : 0x8452da3fu, 0);
+    prepare_world(&game.train,game.population,0);
 }
 
 API unsigned char *model_buffer(void) { return transfer; }
@@ -534,7 +659,7 @@ API int model_load(unsigned len, unsigned role) {
 }
 
 API unsigned export_best(void) {
-    return game.record ? write_record(transfer, game.best) : 0;
+    return game.record_ready ? write_record(transfer, game.best) : 0;
 }
 
 API unsigned export_leader(void) {
@@ -545,16 +670,17 @@ API void configure(unsigned pop, unsigned parents, double mutation, unsigned sec
     game.cfg_population = (unsigned)clamp(pop, 2, game.birdless ? MAX_POP : 500);
     game.cfg_parents = (unsigned)clamp(parents, 1, game.cfg_population);
     game.cfg_limit = (unsigned)clamp(seconds, 10, 240)*60;
-    game.cfg_mutation = __builtin_isfinite(mutation) ? clamp(mutation, 0, 3) : .3;
+    game.cfg_mutation = __builtin_isfinite(mutation) ? clamp(mutation, 0, 3) : 1;
 }
 
 API void reset_training(unsigned seed) {
-    game.rng.state = seed ? seed : 1;
+    seed_world(&game.train,seed);
     game.generation = 1;
     game.round = 1;
     game.elapsed = 0;
     game.tick_credit = 0;
     game.record = game.history_count = game.history_start = 0;
+    game.record_ready=0;
     game.population = game.cfg_population;
     game.parents = game.cfg_parents;
     game.limit = game.cfg_limit;
@@ -563,10 +689,10 @@ API void reset_training(unsigned seed) {
     for (unsigned i = 0; i < game.population; i++) {
         game.deviations[i] = 1;
         unsigned n = game.birdless ? DODGE_WEIGHTS : TRAIN_WEIGHTS;
-        for (unsigned j = 0; j < n; j++) game.genes[i][j] = 2*unit(&game.rng)-1;
+        for (unsigned j=0;j<n;j++) game.genes[i][j]=((int)layout_roll(&game.train.layout,20001)-10000)/10000.;
     }
     seed_movement();
-    reset_world(&game.train, game.population, game.birdless ? random_u32(&game.rng) : 0x8452da3fu, 0);
+    prepare_world(&game.train,game.population,0);
 }
 
 API void set_training(unsigned goal, unsigned seed) {
@@ -597,7 +723,8 @@ API void init(unsigned seed) {
     memset(&game,0,sizeof game);
     game.speed = game.drawing = game.info = 1;
     game.zoom = 1;
-    configure(500, 50, .3, 90);
+    prepare_normal();
+    configure(500,50,1,90);
     set_training(1, seed);
 }
 
@@ -695,13 +822,12 @@ API void frame(double ms, unsigned actions, unsigned pan) {
         } else {
             step_world(&game.train, 0, 0);
             if (!game.train.alive || game.train.tick >= game.limit) {
-                update_record();
                 if (game.birdless) {
                     next_generation(); /* Native movement HUD reports Partida (1/1). */
                 } else if (game.round == 1) {
                     for (unsigned i=0;i<game.train.count;i++) game.first_round[i]=game.train.dinos[i].score;
                     game.round=2;
-                    reset_world(&game.train,game.population,0x2477feb9u,0);
+                    prepare_world(&game.train,game.population,0);
                 } else {
                     for (unsigned i=0;i<game.train.count;i++)
                         game.train.dinos[i].score=(game.train.dinos[i].score+game.first_round[i])*.5;
@@ -710,7 +836,6 @@ API void frame(double ms, unsigned actions, unsigned pan) {
             }
         }
     }
-    if (!game.testing) update_record();
 }
 
 API void paint(void) { draw_game(); draw_aux(); }
@@ -723,6 +848,7 @@ API double status(unsigned i) {
         case 2: return w->count;
         case 3: return w->dinos[w->winner].score;
         case 4: return game.record;
+        case 36: return game.record_ready;
         case 5: return game.testing;
         case 6: return game.speed;
         case 7: return game.drawing;

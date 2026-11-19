@@ -190,7 +190,7 @@ function sync() {
   $('test-stats').hidden = !test || choosing;
   $('average').setAttribute('aria-pressed', !!s(10));
   $('toggle-view').setAttribute('aria-pressed', drawing);
-  $('export-best').disabled = !s(4);
+  $('export-best').disabled = !s(36);
   if (!birdless) $('save-movement').hidden = s(27) !== 2;
   set('toggle-mode', test || choosing ? 'Voltar ao treino ↵' : 'Testar ↵');
   set('pause', paused ? 'Continuar P' : 'Pausar P');

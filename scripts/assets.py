@@ -70,7 +70,7 @@ def build_edition(package, page, birdless):
         edition='sem-passaros' if birdless else 'com-passaros',
          label='Sem pássaros' if birdless else 'Com pássaros',
          population=1000 if birdless else 500, parents=100 if birdless else 50,
-         mutation='1.00' if birdless else '0.30',
+          mutation='1.00',
          camera_scope='No treino e no teste' if birdless else 'No treino',
          birds_current='' if birdless else current, birdless_current=current if birdless else '',
         network='Rede neural' if birdless else 'Rede de mira')
