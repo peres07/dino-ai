@@ -11,7 +11,7 @@ extern HOST(mini) void mini(double,double,double);
 
 enum { DINO=0, CACTUS=12, BIRD=21, GROUND_TILE=25, HILLS=31, CLOUD=33, SUN=34,
     MOON, TREE, CAVE, SPIKES, GUN, BULLET, COIN, SMOKE=53, TREE_VARIANT=62,
-    CAVE_VARIANT=65, NEURON=68, NEURON_LARGE, GLOW, INPUT, CHROME };
+    TREE_BACK=63, TREE_BACK2=64, CAVE_VARIANT=65, NEURON=68, NEURON_LARGE, GLOW, INPUT, CHROME };
 static const unsigned sand=0xfddc8f, sky=0xb2e4fd, orange=0xff8700;
 static const unsigned colors[]={0xffbd00,0x00e7f4,0xff00fa,0x00eb14,0xff3300,0x1754ff,0xbe52ff,0x808080,0xff8000};
 
@@ -141,7 +141,16 @@ static void draw_obstacle(const World *w,const Obstacle *o,int front) {
         height=(tree?1604:842)*k;
         y=GROUND+(tree?18:1)*k-height;
         if(!visible(x,y,width,height)) return;
-        if(!front) sprite(tree?TREE:CAVE,x,y,width,height,0,1,0);
+        /* arvore3/arvore4 are allocated at manager+0x7c/+0x80 and drawn in
+           pass 1, behind the runner (0x4520a0). arvore2 lives at +0x78 and
+           is the only tree layer drawn in pass 2 (0x451f92). */
+        if(!front) {
+            sprite(tree?TREE:CAVE,x,y,width,height,0,1,0);
+            if(tree && !game.birdless) {
+                sprite(TREE_BACK,x,y,width,height,0,1,0);
+                sprite(TREE_BACK2,x,y,width,height,0,1,0);
+            }
+        }
         else if(tree) sprite(TREE_VARIANT,x,y,width,height,0,1,0);
         else for(unsigned i=0;i<3;i++) sprite(CAVE_VARIANT+i,x,y,width,height,0,1,0);
         return;

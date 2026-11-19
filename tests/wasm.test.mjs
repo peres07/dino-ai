@@ -315,6 +315,33 @@ test('camera, pause, speed, overlay and headless update are independent', () => 
   assert.equal(e.status(6), 1);
 });
 
+test('tree layers follow the native two passes', () => {
+  for (const birdless of [false, true]) {
+    const {e, load, sprites} = engine(birdless);
+    if (birdless) e.configure(30, 6, 1, 30);
+    else { load(dodge, 1); e.configure(30, 6, 1, 30); }
+    e.reset_training(7);
+    e.command(6); // fast-forward until a tree is visible
+    let frame = null;
+    for (let i = 0; i < 2000 && !frame; i++) {
+      e.frame(50, 0, 0);
+      sprites.length = 0;
+      e.paint();
+      if (sprites.includes(62)) frame = [...sprites];
+    }
+    assert.ok(frame, `${birdless ? 'sem' : 'com'} pássaros: a tree is on screen`);
+    const base = frame.indexOf(36), deep = frame.indexOf(63), deeper = frame.indexOf(64), front = frame.indexOf(62);
+    assert.ok(base >= 0 && front > base, 'arvore.png comes from the back pass and arvore2 from the front pass');
+    if (birdless) {
+      assert.equal(deep, -1); assert.equal(deeper, -1);
+    } else {
+      /* arvore3/arvore4 sit on manager+0x7c/+0x80 and are drawn in pass 1. */
+      assert.ok(deep > base && deep < front, 'arvore3 is drawn behind the runner');
+      assert.ok(deeper > deep && deeper < front, 'arvore4 is drawn behind the runner');
+    }
+  }
+});
+
 test('population sprites are painted at real locations, not in an artificial row', () => {
   const {e, load, dinos} = engine();
   load(dodge, 1);
