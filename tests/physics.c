@@ -182,7 +182,9 @@ static void test_layout(void) {
             Obstacle o=make_obstacle(&rng,0,i);
             assert(o.scale==1);
             assert(o.sprite>=0 && o.sprite<=OB_SPIKES);
-            if (o.sprite==OB_BIRD) assert(o.y>=5*MOVEMENT_SCALE && o.y<=105*MOVEMENT_SCALE);
+            if (o.sprite==OB_BIRD) assert(o.y>=0 && o.y<=100*MOVEMENT_SCALE);
+            else if (o.sprite==OB_CAVE) assert(close_to(o.y,30*MOVEMENT_SCALE));
+            else assert(o.y==0); /* sprite bottom rests on the ground line */
             seen[o.sprite]++;
         }
         assert((seen[OB_BIRD]==0)==(edition!=0));

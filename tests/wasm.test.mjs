@@ -11,12 +11,13 @@ const movementModels = readdirSync(movementDir);
 const movement = name => readFileSync(`${movementDir}/${name}`);
 
 function engine(birdless = false) {
-  const records = [], draws = [], dinos = [], sprites = [], texts = [], lines = [], birds = [];
+  const records = [], draws = [], dinos = [], sprites = [], painted = [], texts = [], lines = [], birds = [];
   const browser = Object.fromEntries(WebAssembly.Module.imports(module).map(({name}) => [name, () => {}]));
   browser.record = (score, ptr, len) => records.push([score, Buffer.from(view(ptr, len))]);
   browser.surface = id => draws.push(id);
   browser.sprite = (id, x, y, width, height, rotation) => {
     sprites.push(id);
+    painted.push({id, x, y, width, height, rotation});
     if (id >= 21 && id <= 24) birds.push({id, x, y, width, height, rotation});
     if (id < 12) dinos.push({x, y, width});
   };
@@ -31,7 +32,7 @@ function engine(birdless = false) {
   };
   if (birdless) e.init_birdless(1);
   else e.init(1);
-  return {e, view, records, draws, dinos, sprites, texts, lines, birds, load};
+  return {e, view, records, draws, dinos, sprites, painted, texts, lines, birds, load};
 }
 
 test('loads each legacy network and rejects invalid or incompatible data', () => {
@@ -383,6 +384,28 @@ test('pretrained aim networks turn the gun onto the bird', () => {
     assert.ok(ticks > 2500, `${name} survives the course (${ticks} ticks)`);
     assert.ok(best > 50, `${name} hits birds (${best})`);
   }
+});
+
+test('obstacle sprites rest their bottom on the ground line', () => {
+  // Native obstacles keep y=0 (the ground is y=25 in the PE) and the
+  // collision adds 5.0, but the sprite is drawn with its base on the ground.
+  const GROUND = 434;
+  const {e, load, painted} = engine();
+  load(dodge, 1);
+  load(original('6611'), 2);
+  assert.equal(e.mode(1), 1);
+  const seen = new Map();
+  for (let i = 0; i < 1500 && seen.size < 10; i++) {
+    e.frame(50, 0, 0);
+    painted.length = 0;
+    e.paint();
+    for (const p of painted) {
+      const obstacle = (p.id >= 12 && p.id <= 20) || p.id === 38;
+      if (obstacle && !seen.has(p.id)) seen.set(p.id, Math.abs(p.y + p.height - GROUND));
+    }
+  }
+  assert.ok(seen.size >= 8, `saw cacti and spikes (${[...seen.keys()].join(',')})`);
+  for (const [id, offset] of seen) assert.ok(offset < 1e-6, `sprite ${id} bottom on the ground (${offset})`);
 });
 
 test('bird sprite follows the native pair and flight angle', () => {

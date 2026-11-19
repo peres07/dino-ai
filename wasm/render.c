@@ -183,9 +183,11 @@ static void draw_obstacle(const World *w,const Obstacle *o,int front) {
         case OB_SPIKES: id=SPIKES; break;
         default: id=CACTUS+o->sprite; tint=game.birdless?0x138600:0x549723; break;
     }
-    /* Only the rolling Chrome carries an angle; cacti and spikes stay upright. */
-    double rotation=o->sprite==OB_CHROME?(o->angle+3)*(PI/180):0;
-    sprite(id,x,y,width,height,rotation,1,tint);
+    /* Native 0x451dc4 adds 3 px to the sprite x, not to the angle. Only the
+       rolling Chrome carries a rotation, and PIG negates it for the renderer
+       (0x403ac8). Cacti and spikes stay upright. */
+    double rotation=o->sprite==OB_CHROME?-o->angle*(PI/180):0;
+    sprite(id,x+3*k,y,width,height,rotation,1,tint);
 }
 
 void draw_game(void) {

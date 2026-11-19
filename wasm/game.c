@@ -137,15 +137,19 @@ static Obstacle make_obstacle(LayoutRng *r,double x,unsigned serial) {
     /* Preserve the original single obstacle-bird slot only in the bird edition. */
     unsigned kind=type==0?OB_BIRD:type<=9?type-1:type;
     const double k=MOVEMENT_SCALE;
+    /* Native ground is at y=25; the port measures heights above the ground,
+       so the obstacle base is 0. The collision box starts 5 native pixels
+       higher (the native adds 5.0 to the obstacle y, 0x44c4a5), but the
+       sprite bottom rests on the ground line. */
     switch (kind) {
         case OB_BIRD:
-            return (Obstacle){x,42*k,34*k,(5+layout_roll(r,101))*k,1,OB_BIRD,0,0,serial};
-        case OB_CHROME: return (Obstacle){x+500*k,250*k,250*k,5*k,1,OB_CHROME,-5,0,serial};
-        case OB_CAVE: return (Obstacle){x,665*k,665*k,35*k,1,OB_CAVE,0,0,serial};
-        case OB_TREE: return (Obstacle){x+200*k,220*k,165*k,5*k,1,OB_TREE,0,0,serial};
-        case OB_SPIKES: return (Obstacle){x,1400*k,30*k,5*k,1,OB_SPIKES,0,0,serial};
+            return (Obstacle){x,42*k,34*k,layout_roll(r,101)*k,1,OB_BIRD,0,0,serial};
+        case OB_CHROME: return (Obstacle){x+500*k,250*k,250*k,0,1,OB_CHROME,-5,0,serial};
+        case OB_CAVE: return (Obstacle){x,665*k,665*k,30*k,1,OB_CAVE,0,0,serial};
+        case OB_TREE: return (Obstacle){x+200*k,220*k,165*k,0,1,OB_TREE,0,0,serial};
+        case OB_SPIKES: return (Obstacle){x,1400*k,30*k,0,1,OB_SPIKES,0,0,serial};
         default: {
-            return (Obstacle){x,widths[kind]*k,heights[kind]*k,5*k,1,(int)kind,0,0,serial};
+            return (Obstacle){x,widths[kind]*k,heights[kind]*k,0,1,(int)kind,0,0,serial};
         }
     }
 }
