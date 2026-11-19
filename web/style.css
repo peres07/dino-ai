@@ -1,0 +1,42 @@
+:root{font-family:DinoArial,Arial,sans-serif;color:#000;background:#101010}
+*{box-sizing:border-box}
+body{margin:0;height:100dvh;display:flex;flex-direction:column}
+.site-header,.site-header nav{display:flex;align-items:center;flex-wrap:wrap;gap:.3rem 1rem}
+.site-header{padding:.35rem 1rem;justify-content:space-between;background:#fff6df;color:#302417}
+.site-header a{padding:.35em 0;color:inherit}
+.site-header a[aria-current]{font-weight:bold;text-decoration-thickness:.15em}
+.site-header a:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+[hidden]{display:none!important}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #000;outline-offset:2px}
+#app{flex:1;min-height:0;display:grid;place-items:center;container-type:size}
+#stage{position:relative;width:min(100cqw,calc(100cqh * 16 / 9));aspect-ratio:16/9;container-type:inline-size;background:#b2e4fd}
+#stage:focus-visible{outline:2px solid #302417;outline-offset:-2px}
+#scene{display:block;width:100%;height:auto}
+#test-menu{position:absolute;inset:0;overflow:auto;padding:1.45% 2.35%;background:#fff;font-size:clamp(13px,1.05cqw,23px)}
+#test-models{display:flex;flex-direction:column;align-items:flex-start;margin-top:1.3%}
+#test-menu button{border:2px solid transparent;background:#fff;padding:0 .14em;text-align:left;line-height:1.04}
+#test-menu button:hover,#test-menu button:focus{border-color:#000;outline:none}
+#test-menu #test-leader{border-color:#000}
+.toolbar{position:absolute;right:.7%;bottom:.6%;display:flex;gap:4px;font-size:clamp(10px,.78cqw,16px)}
+.toolbar button{padding:.16em .42em;border:1px solid #a98249;background:#fff6df;color:#302417}
+kbd{font-family:inherit;font-size:.9em;opacity:.68}
+dialog{max-width:min(720px,calc(100% - 26px));max-height:calc(100dvh - 30px);padding:16px 20px;border:2px solid #16110b;background:#fddc8f;color:#16110b}
+dialog::backdrop{background:#0009}
+dialog header,.actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+dialog header{justify-content:space-between}
+h1{margin:0;font-size:1.27rem}h2{font-size:1rem;margin:12px 0 6px}
+.panel-columns{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+form,.stack{display:grid;gap:6px}
+label{display:flex;align-items:center;justify-content:space-between;gap:10px;line-height:1.3;font-size:.9rem}
+dialog button,dialog input,dialog select{padding:.29em .55em;background:#fff8e5;border:1px solid #7a6337;border-radius:0}
+dialog input[type=number]{width:72px}
+dialog select{min-width:0;max-width:100%}
+.shortcuts output{min-width:2em;text-align:center}
+.hint{font-size:.82rem;margin:.45em 0;color:#4b3a22}
+#settings-message:empty,#message:empty{display:none}
+#settings-message{margin:6px 0;color:#623000;font-size:.84rem}
+#message:not(:empty){position:fixed;left:12px;bottom:10px;margin:0;max-width:calc(100vw - 24px);padding:6px 9px;background:#fff;color:#000;border:1px solid #000;pointer-events:none;font-size:.86rem}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media(max-width:540px){.panel-columns{grid-template-columns:1fr}}

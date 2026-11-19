@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR" data-edition="$edition">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Experimentos IA · Dino IA Hardmode · $label</title>
+  <link rel="icon" href="assets/icon.png">
+  <link rel="stylesheet" href="${shared}style.css">
+  <style>@font-face{font-family:DinoArial;src:url('assets/arial.ttf') format('truetype');font-display:swap}</style>
+</head>
+<body>
+  <header class="site-header">
+    <h1>Dino IA Hardmode</h1>
+    <nav aria-label="Edições do simulador">
+      <a href="$shared" $birds_current>Com pássaros</a>
+      <a href="${shared}sem-passaros/" $birdless_current>Sem pássaros</a>
+    </nav>
+  </header>
+  <main id="app" aria-label="Simulador · $label" hidden>
+    <div id="stage" role="group" tabindex="0" aria-label="Dino IA Hardmode · $label">
+      <canvas id="scene" width="1920" height="1080" aria-label="Cenário, aptidão por geração, estatísticas e redes neurais"></canvas>
+      <section id="test-menu" aria-label="Selecione a rede para testar" hidden>
+        <button id="test-leader" type="button">Melhor Rede em Treinamento</button>
+        <div id="test-models"></div>
+      </section>
+      <div class="toolbar">
+        <button id="toggle-mode" type="button">Testar <kbd>↵</kbd></button>
+        <button id="open-settings" type="button">Ajustes</button>
+      </div>
+      <span id="mode-label" class="sr-only">Carregando</span>
+      <span id="training-stats" class="sr-only"></span>
+      <span id="test-stats" class="sr-only" hidden></span>
+    </div>
+  </main>
+  <p id="message" role="status" aria-live="polite">Carregando o simulador…</p>
+
+  <dialog id="preferences" aria-labelledby="preferences-title">
+    <header><h2 id="preferences-title">Ajustes · $label</h2><button id="close-settings" type="button" aria-label="Fechar">×</button></header>
+    <p id="settings-message" role="status" aria-live="polite"></p>
+    <div class="panel-columns">
+      <section>
+        <h2>Treinamento</h2>
+        <form id="settings">
+          <!--birds--><label>Objetivo <select id="training-policy"><option value="2">1 · Só movimento</option><option value="0">2 · Só disparo</option><option value="1" selected>Movimento e disparo juntos</option></select></label>
+          <label class="stack" id="firing-dodge-field" hidden>Rede de movimento fixa <select id="firing-dodge"></select></label>
+          <p class="hint">Treine o movimento, salve a rede e selecione-a para treinar só o disparo.</p><!--/birds-->
+          <label>Indivíduos <input id="population-setting" type="number" min="2" max="$population" required value="$population"></label>
+          <label>Pais selecionados <input id="parents" type="number" min="1" max="$population" required value="$parents"></label>
+          <label>Intensidade da mutação <input id="mutation" type="number" min="0" max="3" step="0.01" required value="$mutation"></label>
+          <label>Limite por partida (s) <input id="limit" type="number" min="10" max="240" required value="90"></label>
+          <div class="actions"><button type="submit">Aplicar ajustes</button><button id="reset" type="button">Reiniciar treino</button></div>
+        </form>
+      </section>
+      <section>
+        <h2>Redes neurais</h2>
+        <label class="stack">Rede para baixar <select id="models"></select></label>
+        <div class="actions">
+          <button type="button" id="import">Importar</button><input type="file" id="model-file" hidden>
+          <button type="button" id="export">Baixar selecionada</button>
+          <button type="button" id="export-best" disabled>Baixar recorde</button>
+          <!--birds--><button type="button" id="save-movement" hidden>Salvar melhor rede de movimento</button><!--/birds-->
+        </div>
+        <p class="hint">Os recordes são guardados neste navegador.</p>
+      </section>
+    </div>
+    <h2>Visualização e atalhos</h2>
+    <div class="actions shortcuts">
+      <button id="toggle-view" data-cmd="1">Renderização <kbd>Esc</kbd></button>
+      <button data-cmd="2">$network <kbd>R</kbd></button>
+      <!--birds--><button data-cmd="11">Rede de movimento <kbd>V</kbd></button><!--/birds-->
+      <button id="average" data-cmd="3" aria-pressed="false">Média móvel <kbd>F</kbd></button>
+      <button data-cmd="4">Gráfico <kbd>G</kbd></button><button data-cmd="5">Gráfico livre <kbd>H</kbd></button>
+      <button data-cmd="8">Informações <kbd>U</kbd></button>
+      <button id="pause" data-cmd="9">Pausar <kbd>P</kbd></button>
+      <button data-cmd="7" aria-label="Reduzir velocidade">− <kbd>M</kbd></button><output id="speed">1×</output><button data-cmd="6" aria-label="Aumentar velocidade">+ <kbd>N</kbd></button>
+    </div>
+    <p class="hint">$camera_scope: W/A/S/D move a câmera, Q/E dá zoom, Espaço restaura a câmera. Enter abre ou fecha o teste. No gráfico livre, use a rolagem para navegar pelo histórico.</p>
+    <p class="hint">Teste: setas movem o jogador, Z dá pulo duplo, X superpulo, C dá dash<!--birds-->, A/D mira, S atira<!--/birds-->. T reinicia.</p>
+  </dialog>
+  <script type="module" src="${shared}main.js"></script>
+</body>
+</html>

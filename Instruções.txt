@@ -1,0 +1,43 @@
+
+- O jogo começa no modo treinamento.
+
+- Durante o treinamento, sempre que uma rede neural bater o recorde atual, ela é salva automaticamente na pasta "redes". O nome do arquivo é a pontuação que ela atingiu.
+
+- As redes neurais que estiverem pasta "redes" serão listadas automaticamente na tela de teste para serem escolhidas e testadas.
+
+- Durante o teste, um dos personagens está livre para ser controlado pelo jogador (humano).
+
+- Junto do executável existe um arquivo chamado "redeDesviando". Não delete, renomeie ou mova esse arquivo. Ele é a rede neural treinada para desviar dos obstaculos. Essa rede será carregada e usada durante o treinamento da rede que atira.
+
+
+
+Controles da interface:
+
+	W/A/S/D	-> Movimenta a camera pelo cenário (durante o modo de treinamento)
+	Q/E	-> Aplica/retira zoom na camera (durante o modo de treinamento)
+	Espaço  -> Reseta a posição e o zoom da camera para o default
+
+	Enter 	-> Entra/sai do modo teste
+	ESC 	-> Desliga/liga a renderização (para acelerar o treinamento)
+
+	R 	-> Amplia a rede neural do melhor individuo
+
+	F	-> Alterna o tipo de gráfico (com média móvel ou sem)
+	G 	-> Amplia o gráfico normalizado (para caber na tela)
+	H 	-> Amplia o gráfico com tamanho livre (cresce com o passar das gerações)
+
+	N	-> Duplica a velocidade do jogo
+	M	-> Reduz pela metade a velocidade do jogo
+
+	U	-> Esconde as informações da interface
+
+Controles do personagem (apenas no modo teste):
+
+	Setas 	-> Pula, abaixa, anda pra esquerda, anda pra direita
+	Z 	-> Pulo Duplo
+	X 	-> Super Pulo
+	C 	-> Dash
+
+	A/D	-> Gira a arma pra esquerda/direita
+	S	-> Atira
+

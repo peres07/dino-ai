@@ -1,0 +1,9 @@
+.git
+.env
+build
+dist
+**/__pycache__
+**/*.exe
+**/*.dll
+docs
+tests
