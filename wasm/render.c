@@ -182,8 +182,9 @@ static void draw_obstacle(const World *w,const Obstacle *o,int front) {
         case OB_SPIKES: id=SPIKES; break;
         default: id=CACTUS+o->sprite; tint=game.birdless?0x138600:0x549723; break;
     }
-    /* Native adds 3 degrees to the obstacle angle before drawing (0x451dc4). */
-    sprite(id,x,y,width,height,(o->angle+3)*(PI/180),1,tint);
+    /* Only the rolling Chrome carries an angle; cacti and spikes stay upright. */
+    double rotation=o->sprite==OB_CHROME?(o->angle+3)*(PI/180):0;
+    sprite(id,x,y,width,height,rotation,1,tint);
 }
 
 void draw_game(void) {
