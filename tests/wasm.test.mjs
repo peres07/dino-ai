@@ -347,6 +347,44 @@ test('tree layers follow the native two passes', () => {
   }
 });
 
+test('pretrained movement networks still fly the original course', () => {
+  // The sensor inputs are normalized exactly like the PE (x/W, y/540, w/250,
+  // h/250, gap/(W/2), y/130, v^2/100, energy/100, drift^2/25, coin/W).
+  // A scaling error makes the packaged nets crash within a few obstacles.
+  const {e, load} = engine(true);
+  load(movement('12343'), 2);
+  assert.equal(e.mode(1), 1);
+  let ticks = 0, best = 0;
+  for (let i = 0; i < 2500 && e.status(17); i++) {
+    e.frame(50, 0, 0);
+    ticks = e.status(12);
+    best = Math.max(best, e.status(15));
+  }
+  assert.ok(ticks > 3000, `packaged net survives the course (${ticks} ticks)`);
+  assert.ok(best > 100, `packaged net scores (${best})`);
+});
+
+test('pretrained aim networks turn the gun onto the bird', () => {
+  // getValorSensores (0x448580) feeds cos/sin of the angle to the bird minus
+  // the gun angle, and atirar (0x4408be) builds vy = sin(angle)*speed while
+  // inserirAcoes (0x4472fa) adds 12 degrees to "Girar Cima". Mixing those
+  // conventions makes the packaged aim nets turn away and die in seconds.
+  for (const name of ['6611', '1896', '3491']) {
+    const {e, load} = engine();
+    assert.equal(load(dodge, 1), 1);
+    assert.equal(load(original(name), 2), 1);
+    assert.equal(e.mode(1), 1);
+    let ticks = 0, best = 0;
+    for (let i = 0; i < 2500 && e.status(17); i++) {
+      e.frame(50, 0, 0);
+      ticks = e.status(12);
+      best = Math.max(best, e.status(15));
+    }
+    assert.ok(ticks > 2500, `${name} survives the course (${ticks} ticks)`);
+    assert.ok(best > 50, `${name} hits birds (${best})`);
+  }
+});
+
 test('bird sprite follows the native pair and flight angle', () => {
   const {e, load, birds, sprites} = engine();
   load(dodge, 1);

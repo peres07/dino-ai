@@ -248,9 +248,11 @@ static void aim_sensors(const World *w,const Dino *d,double in[4]) {
     dy+=(BIRD_H-height)*.5;
     double dist=__builtin_sqrt(dx*dx+dy*dy);
     if (dist>0) {
+        /* Native sensors are cos/sin of (angle to bird - gun angle), with
+           both angles measured counter-clockwise from the horizontal. */
         double c=dino_cos(d->angle),s=dino_sin(d->angle);
-        in[2]=(dx*c-dy*s)/dist;
-        in[3]=(dy*c+dx*s)/dist;
+        in[2]=(dx*c+dy*s)/dist;
+        in[3]=(dy*c-dx*s)/dist;
     }
 }
 
@@ -422,8 +424,10 @@ static void update_dino(World *w,Dino *d,unsigned actions,const double aim[3]) {
                 double width,height;
                 runner_pose(d,w->tick,&width,&height);
                 double speed=(20+60*(clamp(aim[2],.5,1000)-.5))*MOVEMENT_SCALE;
+                /* Native atirar (0x4408be) builds vx=cos(angle)*speed and
+                   vy=sin(angle)*speed; the field's y grows upward. */
                 d->shots[i]=(Shot){d->x+width*.5,d->y+height*.5,
-                    speed*dino_cos(d->angle),-speed*dino_sin(d->angle),1};
+                    speed*dino_cos(d->angle),speed*dino_sin(d->angle),1};
                 d->ammo-=5;
                 d->cooldown=10;
                 break;
